@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net11.0-windows10.0.22000.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <WarpToolkitVersion>0.9.852-preview.g888af68ad8</WarpToolkitVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WarpToolkit.WinForms.AppServices" Version="0.9.852-preview.g888af68ad8" />
+    <PackageReference Include="WarpToolkit.WinForms" Version="$(WarpToolkitVersion)" />
+    <PackageReference Include="WarpToolkit.WinForms.Specialized" Version="$(WarpToolkitVersion)" />
+    <PackageReference Include="PDFsharp-GDI" Version="6.2.0" />
+    <ProjectReference Include="..\Expenses.Core\Expenses.Core.csproj" />
+    <InternalsVisibleTo Include="Expenses.Tests" />
+  </ItemGroup>
+
+
+</Project>
