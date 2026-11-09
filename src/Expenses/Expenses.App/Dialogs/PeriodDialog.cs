@@ -2,56 +2,66 @@ using Expenses.Core;
 
 namespace Expenses.App.Dialogs;
 
-internal sealed class PeriodDialog : Form
+public sealed partial class PeriodDialog : Form
 {
+    private BookkeepingStore? _store;
+    private bool _create;
+    [System.ComponentModel.Browsable(false)]
+    [System.ComponentModel.DesignerSerializationVisibility(System.ComponentModel.DesignerSerializationVisibility.Hidden)]
     public BookkeepingPeriod? SelectedPeriod { get; private set; }
 
-    public PeriodDialog(BookkeepingStore store, bool create)
+    public PeriodDialog()
     {
-        DialogLayout.Configure(this, create ? "New bookkeeping period" : "Open bookkeeping period", new Size(570, 360));
-        var fields = DialogLayout.Fields();
-        fields.AutoScroll = true;
-        fields.Dock = DockStyle.Fill;
-        Controls.Add(fields);
-        if (create)
+        InitializeComponent();
+    }
+
+    public PeriodDialog(BookkeepingStore store, bool create) : this()
+    {
+        _store = store ?? throw new ArgumentNullException(nameof(store));
+        _create = create;
+        Text = create ? "New bookkeeping period" : "Open bookkeeping period";
+        _ok.Text = create ? "Create" : "Open";
+        _fields.Visible = create;
+        _periodsPanel.Visible = !create;
+        _year.Value = DateTime.Today.Year;
+        _number.Value = DateTime.Today.Month;
+    }
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        DialogLayout.CapToWorkingArea(this);
+        if (_store is null || _create) return;
+        try { _periods.DataSource = _store.GetPeriods(); }
+        catch (Exception ex) { DialogLayout.Error(this, ex); }
+    }
+
+    private void KindChanged(object? sender, EventArgs e)
+    {
+        int maximum = _kind.SelectedIndex switch { 0 => 12, 1 => 4, _ => 1 };
+        _number.Value = Math.Min(_number.Value, maximum);
+        _number.Maximum = maximum;
+        _number.Enabled = maximum > 1;
+    }
+
+    private void AcceptClick(object? sender, EventArgs e)
+    {
+        if (_store is null) return;
+        try
         {
-            var year = new NumericUpDown { Minimum = 1900, Maximum = 9998, Value = DateTime.Today.Year };
-            var kind = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, DataSource = Enum.GetValues<PeriodKind>() };
-            var number = new NumericUpDown { Minimum = 1, Maximum = 12, Value = DateTime.Today.Month };
-            var state = new MaskedTextBox { Mask = ">LL", TextMaskFormat = MaskFormat.ExcludePromptAndLiterals };
-            kind.SelectedIndexChanged += (_, _) =>
+            if (_create)
             {
-                int maximum = kind.SelectedItem is PeriodKind.Month ? 12 : kind.SelectedItem is PeriodKind.Quarter ? 4 : 1;
-                number.Value = Math.Min(number.Value, maximum);
-                number.Maximum = maximum;
-                number.Enabled = maximum > 1;
-            };
-            DialogLayout.Add(fields, "&Calendar year:", year);
-            DialogLayout.Add(fields, "Period &type:", kind);
-            DialogLayout.Add(fields, "&Month / quarter number:", number);
-            DialogLayout.Add(fields, "&State (optional):", state);
-            DialogLayout.Add(fields, "", new Label { Text = "Use a two-letter U.S. state abbreviation.\nMonthly/quarterly groups are not separate federal tax years.", AutoSize = true });
-            DialogLayout.Footer(this, () =>
+                if (_kind.SelectedIndex < 0) return;
+                SelectedPeriod = _store.AddPeriod((int)_year.Value, (PeriodKind)_kind.SelectedIndex,
+                    (int)_number.Value, _state.Text);
+            }
+            else
             {
-                try
-                {
-                    if (kind.SelectedItem is not PeriodKind selectedKind) return;
-                    SelectedPeriod = store.AddPeriod((int)year.Value, selectedKind, (int)number.Value, state.Text);
-                    DialogResult = DialogResult.OK;
-                }
-                catch (Exception ex) { DialogLayout.Error(this, ex); }
-            }, "Create");
-        }
-        else
-        {
-            var periods = new ListBox { DataSource = store.GetPeriods(), Height = 220 };
-            DialogLayout.Add(fields, "&Bookkeeping period:", periods);
-            DialogLayout.Footer(this, () =>
-            {
-                if (periods.SelectedItem is not BookkeepingPeriod period) return;
+                if (_periods.SelectedItem is not BookkeepingPeriod period) return;
                 SelectedPeriod = period;
-                DialogResult = DialogResult.OK;
-            }, "Open");
+            }
+            DialogResult = DialogResult.OK;
         }
+        catch (Exception ex) { DialogLayout.Error(this, ex); }
     }
 }

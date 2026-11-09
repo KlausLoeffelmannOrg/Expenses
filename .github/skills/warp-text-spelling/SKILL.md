@@ -1,9 +1,16 @@
 ---
 name: warp-text-spelling
 description: Use when adding spelling checks, squiggles, overview dots, correction menus or Add to Dictionary to WARP D2DTextBox, D2DTextEditor, D2DCodeEditor, D2DMarkdownEditor, chat prompts, or hosted TextBoxBase text elements. Explains backend-neutral WarpToolkit.Text.Spelling, Windows dictionary discovery, asynchronous provider lifetime, language changes, diagnostic snapshots, failure reporting and deterministic tests.
+metadata:
+  source: "WARP src\\WarpToolkit.Text.Spelling; src\\WarpToolkit.WinForms.DirectX (spelling adorners)"
+  versions: "../warp-api-decision-guide/references/versions.md"
 ---
 
 # WARP text spelling
+
+> Designer pair rule: every Form, modal dialog and UserControl touched here is `partial` with a `.Designer.*`,
+> a parameterless ctor owning `InitializeComponent()`, and a runtime ctor `(IServiceProvider) : this()`;
+> services/IO/async start in `OnLoad`, never in `InitializeComponent` (`warp-winforms-application-builder`).
 
 ## Architecture and dependency choice
 
@@ -70,7 +77,7 @@ private async Task InitializeSpellingAsync()
 
     if (result.SpellChecker is not { } checker)
     {
-        MessageBox.Show(this,
+        FluentMessageBox.Show(
             $"Spelling unavailable for {language.Name}: {result.Status} {result.Error}",
             "Spelling", MessageBoxButtons.OK, MessageBoxIcon.Information);
         return;

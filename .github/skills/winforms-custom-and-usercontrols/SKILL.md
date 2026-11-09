@@ -1,11 +1,24 @@
 ---
 name: winforms-custom-and-usercontrols
-description: Author custom controls and UserControls for modern WinForms (.NET 6+). Use this skill whenever the user asks to create, derive, or modernize a WinForms control, UserControl, owner-drawn control, themed/dark-mode-aware control, scrollable Control-derived control, or a List/Grid-like control — even if they only say "I need a control that..." without naming it. Also use when wiring up Designer serialization for new control properties. If the user's project targets .NET Framework (4.x), inform them that Application.IsDarkModeEnabled, ApplyThemingImplicitly, and the WinForms Designer SDK are unavailable—offer .NET Framework equivalents or recommend migration.
+description: >-
+  USE FOR: creating or modernizing a WinForms custom control or UserControl,
+  including owner-draw, dark mode, scrolling, list or grid shapes, and property
+  serialization. DO NOT USE FOR: ordinary form layout, or for .NET Framework
+  apps that need Application.IsDarkModeEnabled or the out-of-process Designer
+  SDK. Those APIs are not available there.
 ---
 
 # When to use this skill
 
-Authoring custom controls and UserControls for modern WinForms (.NET 6+, C# 13/14): base-class selection, clip-proof layout/sizing, owner-draw, dark-mode theming, Designer serialization, and List/Grid controls.
+## Designer baseline
+
+- Every application Form, modal dialog, and UserControl is `partial` with `.Designer.cs` or `.Designer.vb`. See [winforms-designer-code](../winforms-designer-code/SKILL.md).
+- A non-composite `Control` may stay one file when it has a parameterless constructor and hosts no designed children. `SetStyle` in that constructor is design-safe. Services, IO, async, and GPU or WebView devices are not.
+- The parameterless constructor must not hide or restyle a designed surface. Runtime setup chains `: this()` when a second constructor exists.
+- A designed UserControl has one generated `Dispose(bool)`. Do not add another.
+- House style below applies to regular control code, not to `InitializeComponent`. Collection expressions, switch expressions, and missing `using` directives do not belong in designer files.
+
+Authoring custom controls and UserControls for modern WinForms (.NET 6+): base-class selection, clip-proof layout/sizing, owner-draw, dark-mode theming, Designer serialization, and List/Grid controls.
 Use this skill when the user asks to create, derive, or modernize a WinForms control, UserControl, owner-drawn control, themed/dark-mode-aware control, scrollable Control-derived control, or a List/Grid-like control — even if they only say "I need a control that..." without naming it. Also use when wiring up Designer serialization for new control properties.
 
 Use it for designing UserControl to offload complex UI from forms, or when a reusable control is needed across multiple forms/projects. Also use it for modernizing legacy controls to be dark-mode aware and DPI-aware.
@@ -39,7 +52,7 @@ Implement these as a coherent set:
 
 - **`GetPreferredSize(Size proposedSize)`** — return the size genuinely needed for current content, font, padding, and DPI. Measure text with `TextRenderer.MeasureText` (it matches `TextRenderer.DrawText`). Always add `Padding.Size`. This is the single source of truth for "how big do I need to be."
 - **`AutoSize`** — expose and honor it. When `true`, the layout engine calls `GetPreferredSize`; your job is to return an honest number. Re-raise layout when size-affecting content changes (`PerformLayout()` / `Invalidate()`).
-- **`SetBounds(...)`** — override when you must clamp or adjust the bounds you're given (e.g. enforce a minimum). Respect the `BoundsSpecified` flags so you don't clobber a dimension the caller didn't set.
+- **`SetBoundsCore`** — override when you must clamp bounds. `PreferredSize` is read-only. Respect `BoundsSpecified` so you don't clobber a dimension the caller didn't set. Do not set `PreferredSize`.
 - **`Padding`** — honor it in painting *and* `GetPreferredSize`. Content draws inside the padded rectangle.
 
 Rule of thumb: an honest `GetPreferredSize` plus honored `AutoSize`/`Padding` survives DPI and font scaling automatically.
@@ -122,8 +135,9 @@ For a `UserControl` (or any control composed of constituent controls):
 - **No design-time `Font` definitions.** Don't set `Font` on the UserControl or its children at design time. Design-time fonts pollute the HighDPI `AutoScaleDimensions` code generation, so when the user later re-opens the control in the Designer the generated scaling code is wrong. Adjust font *size* only at **runtime**.
 - **Delegate runtime font changes to constituent controls.** If the composite owns child controls whose layout, glyphs, or derived fonts depend on `Font`, override `OnFontChanged`, update those children, and call `PerformLayout()` / `Invalidate()` as needed. Do not assume a child will repaint or resize correctly just because the parent font changed.
 - **Preserve ambient fonts for consumer-owned content.** When a composite accepts externally supplied child content (tab pages, wizard pages, decorator panels, etc.), only apply the host font to controls whose `Font` is still ambient. Do not overwrite fonts the consumer explicitly set.
-- **Runtime-added UserControls should inherit scaling.** If a `UserControl` is meant to be created and added after `InitializeComponent` (for example, tab content added through a custom tab control), its default `AutoScaleMode` should be `Inherit`. This lets it scale from the actual runtime parent instead of from the design-time/default font context.
-- **`AutoScaleMode.Inherit` is not a substitute for font delegation.** It helps late-added UserControls scale from their parent, but owned constituent controls with explicit or derived fonts still need explicit `OnFontChanged` handling.
+- **Hosted view parts inherit scaling.** A UserControl that is a tab, wizard, or complex-form view part uses `AutoScaleMode.Inherit`, whether the Designer parented it or code added it later. The host owns font and DPI scaling. Do not set `Font` on that view and do not make it a second scale root. An explicit `Font` on a hosted `ContainerControl` is skipped by the parent's font scale and does not receive `OnFontChanged` when only the host font changes, so it neither moves nor scales.
+- **Independent scaling roots are the exception.** A top-level window, or a custom control that is intentionally its own `AutoScaleMode.Font` or `Dpi` root, may own scale. A hosted view part is not that exception.
+- **`AutoScaleMode.Inherit` is not a substitute for font delegation.** Owned constituent controls with an explicit or derived font still need `OnFontChanged`. Do not set those fonts on consumer-supplied view content.
 - **Web-hosted controls are separate.** `BlazorWebView`/WebView content does not receive WinForms `Font` automatically. Synchronize font family/size through parameters, CSS variables, or JS interop instead of treating it like a normal child control.
 - **Layout in a `TableLayoutPanel`** with `AutoSize` rows/columns. Let the table compute geometry.
 - **The control itself exposes `AutoSize`** and an honest **`GetPreferredSize`** big enough to render every child unclipped across all HighDPI and large-font scenarios (§2). The `TableLayoutPanel` with AutoSize cells does most of this for you, but verify the outer control reports it.
@@ -256,7 +270,7 @@ Designer functionality in .NET 6+ requires the **WinForms Designer SDK** NuGet p
 - Dark mode: own `#AARRGGBB` palette per mode, switched on `Application.IsDarkModeEnabled`; Win32 scrollbars themed via `CreateParams` + `ApplyThemingImplicitly`.
 - UserControl: no design-time fonts, `TableLayoutPanel` with AutoSize cells, scrolling `Panel` if too large.
 - Composite controls: `OnFontChanged` delegates to owned children and preserves ambient fonts for externally supplied content.
-- Runtime-added UserControls: default `AutoScaleMode` to `Inherit` when used as tab/page content after `InitializeComponent`.
+- Hosted tab, wizard, and complex-form UserControls: `AutoScaleMode.Inherit`. The host owns scaling. An intentional top-level or scaling-root control may own its own mode.
 - Every new property: `[DefaultValue]`, `[DesignerSerializationVisibility]`, or `ShouldSerializeXxx`/`ResetXxx`; plus `[Category]`/`[Description]`.
 - Interdependent or expensive property setters → `ISupportInitialize` with a `_initializing` guard.
 - Designer SDK preview `1.13.0-preview.2.24575.3` if design-time code is involved.

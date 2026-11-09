@@ -1,6 +1,9 @@
 ---
 name: warp-directx-text-editors
 description: "Use when choosing, embedding, or configuring WARP Direct2D text controls: D2DTextBox for input, D2DTextEditor for plain-text documents, D2DCodeEditor for classified code, D2DMarkdownEditor for raw Markdown, and D2DMarkdownPreview for rendered read-only Markdown. Covers Designer placement, editor options, document persistence, completion, preview synchronization, and when to use the separate spelling skill."
+metadata:
+  source: "WARP src\\WarpToolkit.WinForms.DirectX\\Controls (D2DTextBox, D2DTextEditor, D2DCodeEditor, D2DMarkdownEditor, D2DMarkdownPreview)"
+  versions: "../warp-api-decision-guide/references/versions.md"
 ---
 
 # WARP Direct2D text editors
@@ -243,3 +246,15 @@ TurboGraphics `WarpPadVocabulary.GetSuggestion` is a deterministic example.
 - `src\WarpToolkit.WinForms.Roslyn\Roslyn\RoslynCodeEditorService.cs`
 - `samples\cs\TurboGraphics\TurboGraphics\Prototyping\Prototypes\TextEditor\FrmWarpPad.cs`
 - `samples\cs\TurboGraphics\TurboGraphics\Options\EditorOptionsSnapshot.cs`
+
+## Designer boundary
+
+The host Form/UserControl is a Designer pair with a parameterless ctor; editors are
+placed in `InitializeComponent`, configured in `OnLoad`; providers/services via the
+`warp-winforms-application-builder` deferral contract.
+
+## Final checks
+
+1. Editor field declared and placed in `.Designer.*`; no provider or I/O there.
+2. Configuration/document loading runs after `InitializeComponent` (`OnLoad`), guarded for design mode.
+3. Member names verified against the installed package / source map above.

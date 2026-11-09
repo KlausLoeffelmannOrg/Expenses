@@ -1,12 +1,20 @@
 ---
 name: warp-app-services
-
 description: Use this skill when bootstrapping a WinForms application with the WARP-Toolkit's hosting/DI infrastructure, registering app-level services (dialogs, exception handling, user settings, API-key retrieval), implementing IDialogService consumers in view-models, or wiring AI provider keys from environment variables. Covers WarpToolkit.WinForms.AppServices and WarpToolkit.Desktop.AppServices together because they form one logical feature.
-
-metadata: Required latest NuGet packages version is "0.9.323-preview.gb01532b307"
+metadata:
+  source: "WARP src\\WarpToolkit.WinForms.AppServices; src\\WarpToolkit.Desktop.AppServices"
+  versions: "../warp-api-decision-guide/references/versions.md"
 ---
 
 # WARP App Services
+
+## Designer invariant (applies to every WARP surface)
+
+- Every Form, modal dialog and UserControl is `partial` with a paired `.Designer.*`.
+- Parameterless ctor owns `InitializeComponent()`; the DI ctor is `(IServiceProvider sp) : this()`.
+- `InitializeComponent` never touches services, settings, keys, IO or async.
+- The Designer opens every surface without the host; `OnLoad` guards the null-provider path.
+- Shape of record: `warp-winforms-application-builder`; serialization rules: `winforms-designer-code`.
 
 This skill covers the two packages that together provide application-level
 infrastructure for a WARP-based WinForms app:
@@ -15,11 +23,6 @@ infrastructure for a WARP-based WinForms app:
 |---------|------|
 | `WarpToolkit.Desktop.AppServices` | UI-framework-agnostic **contracts** (interfaces, `ViewModelBase`). View-models depend on this only. |
 | `WarpToolkit.WinForms.AppServices` | WinForms-specific **implementations** plus the `IHost`-based application builder. |
-
-Reference files:
-- `src/docs/reference/WarpToolkit.Desktop.AppServices.md`
-- `src/docs/reference/WarpToolkit.WinForms.AppServices.md`
-
 
 ## Mental model
 
@@ -58,14 +61,7 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
-        var builder = WinFormsApplication.CreateBuilder(args);
-
-        builder
-            .UseColorMode(SystemColorMode.System)       // DarkMode aware
-            .UseHighDpiMode(HighDpiMode.SystemAware)
-            .UseLegacyVisualStyles(true)
-            .UseTextRenderingV2(true)
-            .UseStartupForm<MainForm>();
+        WinFormsApplicationBuilder builder = WinFormsApplication.CreateBuilder(args);
 
         builder.Services
             .AddWinFormsDialogService()
@@ -79,6 +75,12 @@ internal static class Program
         // Register your own services next:
         builder.Services.AddSingleton<MainViewModel>();
 
+        builder.UseStartupForm<MainForm>()               // requires a parameterless ctor
+            .UseColorMode(SystemColorMode.System)        // DarkMode aware
+            .UseHighDpiMode(HighDpiMode.PerMonitorV2)
+            .UseTextRenderingV2()
+            .UseLegacyVisualStyles();
+
         builder.Build().Run();
     }
 }
@@ -86,16 +88,21 @@ internal static class Program
 
 Notes:
 
-- **Do not** also call `Application.SetCompatibleTextRenderingDefault(...)`
-  yourself — the builder owns startup options.
+- **Do not** also call `Application.SetCompatibleTextRenderingDefault(...)` or
+  `Application.SetHighDpiMode(...)` yourself — the builder owns startup options.
+  `UseLegacyVisualStyles(bool)` / `UseVisualStylesMode(VisualStylesMode)` exist;
+  `UseVisualStyles(bool)` does not.
 
 - **Do not** add an `app.config`. Use `appsettings.json` (the builder
   automatically wires it; toggle JSON settings with
   `AllowWinFormsJsonAppSettings(true)`).
 
-- For **VB** projects: *do* create a `Program.vb` and disable the VB AppFramework.
-  The WARP builder model is more similar to a C#-style `Main` method than the VB AppFramework, and using the AppFramework causes weird issues with the designer and with multiple forms. The VB AppFramework's main selling point is that it wires up a "My Application" singleton with events for startup, shutdown, unhandled exceptions, etc., but the WARP builder and DI container already provide a 
-  much more powerful and flexible way to do all of that without needing a special singleton.
+- **VB with the WARP host:** create `Program.vb` with `Sub Main`
+  (`<StartupObject>Sub Main</StartupObject>`) and turn the VB Application
+  Framework off — `WinFormsApplication.Run` owns `Application.Run`, and the
+  Application Framework would start a second message loop. This matches every
+  WARP VB template. Classic VB apps that do not use the WARP host keep the
+  Application Framework and have no `Program.vb`.
 
 ## Using `IDialogService` from a ViewModel
 
@@ -148,10 +155,11 @@ framework (e.g. a MAUI shell) by providing a different implementation.
 | `RequestInputAsync` | Single text input. Returns the entered string. |
 | `ShowDialogAsync<TViewModel>(vm)` | Show a full modal dialog given a view-model instance. Resolves the corresponding view via DI. |
 
-**Note** that `ShowDialogAsync<TViewModel>` requires to exchange the view-model instance via the DataContext property, which
-was introduced in .NET 7. The ShowDialogAsync method will return a Tuple of (DialogResult, TViewModel) where the DialogResult is the result of the dialog (OK, Cancel, etc.) 
-and the TViewModel is the instance passed in with any changes made by the user.
-The handling of the dialog is as follows:
+`ShowDialogAsync<TViewModel>` resolves the dialog Form through DI (keyed by the
+view-model type), hands the view-model over via `DataContext`, and returns an
+`IModalDialogResult<TViewModel>` — **not** a WinForms `DialogResult` and not a
+tuple. The dialog Form stays a Designer pair with a parameterless ctor; the
+service only resolves and shows it:
 
 ```CSharp
     public async Task<IModalDialogResult<TViewModel>> ShowDialogAsync<TViewModel>(TViewModel viewModel)
@@ -195,34 +203,139 @@ Use `TryGetAiProviderKey` for the "may not be configured yet" path so the UI
 can guide the user to set the key, rather than throwing
 `EnvironmentVariableNotFoundException`.
 
-## User settings
+## User settings and window geometry
 
 Inject `IUserSettingsService` (contract in `WarpToolkit.ComponentModel`,
-implementation registered via `AddWinFormsUserSettingsService(...)`):
+implementation registered via `AddWinFormsUserSettingsService(...)`): generic
+`Get<T>(key, default)` / `TryGet<T>` / `Set<T>` / `Remove` / `Contains` /
+`Flush`. The Form keeps its Designer pair and two constructors; the service is
+resolved in `OnLoad` through the façade, never in the constructor or
+`InitializeComponent`.
+
+**Built-in placement helpers are a legacy pixel schema — not the recommended
+restore policy.**
+`UIServiceExtensions` (`WarpToolkit.WinForms.Extensions.UI`, verified 0.9.852)
+offers `TryApplyFormBounds/SaveFormBounds` (absolute `Rectangle`, restored when
+it intersects any `Screen.WorkingArea`) and `ApplyFormPlacement/
+SaveFormPlacement` (absolute `Rectangle` + `FormWindowState`; invisible rects
+fall back to a centered 80%/80% of the primary working area — that is the
+library's own fallback, documented here only to recognize legacy behavior; it
+is **not** the 75%/80% first-run policy and must not be adopted as one.
+Minimized is never restored), plus `TryApply/Save DataGridViewColumnWidths`,
+`ListViewColumnWidths`,
+`SplitterDistance` and `Form.GetRestorableBounds()` (Normal → `Bounds`,
+Maximized/Minimized → `RestoreBounds`). They store physical pixels with no DPI
+or monitor identity, so a saved rect is wrong after a DPI, font or monitor
+change. For a LOB main window persist the **DIP schema** through the generic
+`Set<T>`/`TryGet<T>` instead and treat an existing pixel blob as an explicit
+migration (versioned key, convert once with the DPI recorded at migration or
+discard and re-center — never reinterpret pixels as DIPs). Column widths and
+splitter distances remain fine through the helpers when re-applied after the
+font settles.
+
+DIP schema (rule of record:
+[dip-schema](../winforms-high-dpi-fluent-layout/references/window-state.md#dip-schema),
+[first-run-geometry](../winforms-high-dpi-fluent-layout/references/window-state.md#first-run-geometry)):
+
+- Saved while `WindowState == Normal` (or from the last Normal snapshot):
+  outer `Bounds` converted to 96-DPI DIPs (`px * 96 / DeviceDpi`) **relative to
+  the monitor's `Screen.WorkingArea.Location`** (monitor-local, so negative
+  desktop origins survive), plus `Screen.DeviceName`, `Screen.Bounds`,
+  `WorkingArea`, the DPI at save, `IsMaximized` as a separate flag and a schema
+  version. Do not font-normalize coordinates.
+- Restore in `OnLoad` **after** `UseDefaultFont`/AutoScale settled: resolve the
+  monitor by `DeviceName` (fallback: bounds signature, then primary); convert
+  DIPs with that monitor's *current* DPI; clamp to its current `WorkingArea`;
+  apply Normal bounds first, then `WindowState = Maximized` if flagged. Missing
+  monitor → first-run geometry (≈75% width / 80% height of the primary working
+  area, centered). The form's `DeviceDpi` only reflects the target monitor
+  after it is placed there; read it after placement (or `Shown`) and accept the
+  OS-suggested rect from WM_DPICHANGED rather than re-applying saved DIPs
+  ([dpi-suggested-bounds](../winforms-high-dpi-fluent-layout/references/window-state.md#dpi-suggested-bounds)).
+- Runtime font changes keep the outer bounds through the Form's
+  `OnFontChanged` transaction
+  ([font-change-transaction](../winforms-high-dpi-fluent-layout/references/window-state.md#font-change-transaction));
+  save geometry from the Normal bounds afterwards, not during the transaction.
 
 ```csharp
-public partial class MainForm : Form
+// MainForm.cs — regular partial; MainForm.Designer.cs holds InitializeComponent/Dispose.
+public partial class MainForm : Form, IServiceProvider
 {
-    private readonly IUserSettingsService _settings;
+    private const string GeometryKey = "MainForm.Geometry.v2";   // DIP schema; v1 = legacy pixels
+    private IServiceProvider? _serviceProvider;
+    private IUserSettingsService? _settings;
+
+    public MainForm()
+    {
+        InitializeComponent();
+    }
+
+    public MainForm(IServiceProvider serviceProvider) : this()
+    {
+        ArgumentNullException.ThrowIfNull(serviceProvider);
+        _serviceProvider = new DeferredServiceProvider(serviceProvider);
+    }
 
     protected override void OnLoad(EventArgs e)
     {
-        base.OnLoad(e);
-        _settings.TryApplyFormBounds(this, key: nameof(MainForm));
-        _settings.TryApplyDataGridViewColumnWidths(_gridCustomers, key: "Grid.Customers");
+        base.OnLoad(e);                       // app font already applied by the builder; AutoScale settled
+        _settings = _serviceProvider?.GetService<IUserSettingsService>();
+
+        if (_settings is not null && _settings.TryGet(GeometryKey, out WindowGeometry? dips) && dips is not null)
+        {
+            WindowGeometryRestorer.Apply(this, dips);          // app-owned: resolve monitor, DIP→px, clamp, Normal then Maximized
+        }
+        else
+        {
+            WindowGeometryRestorer.ApplyFirstRun(this, Screen.FromControl(this)); // 75% / 80% of WorkingArea, centered
+        }
+
+        _settings?.TryApplyDataGridViewColumnWidths(_gridCustomers, key: "Grid.Customers");
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
-        _settings.SaveFormBounds(this, key: nameof(MainForm));
-        _settings.SaveDataGridViewColumnWidths(_gridCustomers, key: "Grid.Customers");
+        if (_settings is not null && WindowState != FormWindowState.Minimized)
+        {
+            _settings.Set(GeometryKey, WindowGeometry.Capture(this));   // Normal bounds → DIPs + monitor + DPI + IsMaximized
+        }
+
+        _settings?.SaveDataGridViewColumnWidths(_gridCustomers, key: "Grid.Customers");
         base.OnFormClosing(e);
     }
+
+    // IServiceProvider.GetService + DeferredServiceProvider: see warp-winforms-application-builder.
 }
 ```
 
-The `Save*` / `TryApply*` extension methods live in
-`WarpToolkit.WinForms.Extensions.UI.UIServiceExtensions`.
+`WindowGeometry`/`WindowGeometryRestorer` are app code following the WinForms
+rule of record; keep them `T`-serializable for the settings service. Verified
+on scratch tests at 96/144/192 DPI with negative origins and a missing
+monitor; a physical multi-monitor WM_DPICHANGED move is **not** yet covered —
+test it on real hardware before claiming it.
+
+## Modal dialogs without a ViewModel
+
+Small input dialogs that do not justify MVVM still get a contract:
+
+- The dialog is a Designer pair; `Form.DataContext` holds a **draft** object
+  (inputs and outputs) created by the caller; the dialog edits the draft and
+  never reaches back into caller state.
+- `AcceptButton`/`CancelButton` are set in the Designer file; OK sets
+  `DialogResult.OK`, Cancel sets `DialogResult.Cancel`; the caller reads the
+  draft only on `OK`.
+- Simple synchronous validation lives in `OnFormClosing`: when
+  `DialogResult == DialogResult.OK` and the draft is invalid, show the error,
+  set `e.Cancel = true` and keep the dialog open.
+- Complex/async validation (server round-trip, file probe) keeps the dialog
+  open: OK disables the footer, shows a busy state, awaits with a
+  `CancellationToken` tied to Cancel/closing, reports errors inline and only
+  then sets `DialogResult.OK`. Canonical lifecycle (busy/cancel/error, no
+  `async void` beyond the event handler boundary): `winforms-async` and
+  `winforms-options-dialog`; the footer is the nested-TLP
+  [canonical modal footer](../winforms-high-dpi-fluent-layout/references/layout-examples.md#canonical-modal-footer).
+- From a ViewModel use `IDialogService.ShowDialogAsync<TViewModel>` above
+  instead; do not mix both styles in one dialog.
 
 ## Exception handling
 
@@ -282,12 +395,18 @@ coexist.
 
 ## Where to look next
 
-- Designer-aware components that need a service-provider injected at
-  designer time: see `WarpToolkit.WinForms.Design` and
-  `IServiceProviderAssignable` in `WarpToolkit.ComponentModel`.
+- Canonical two-constructor Form shape and deferral contract:
+  `warp-winforms-application-builder`.
 
 - AI components that consume registered keys and chat services: switch to the
   `warp-winforms-ai` skill.
 
-- Modern controls (FluentTabControl, FluentMessageBox, wizards): switch to
-  the `warp-winforms-controls` skill.
+- Modern controls: `warp-fluent-tab-control`, `warp-messaging`, `warp-wizard`,
+  `warp-input-controls`, `warp-containers-layout` (`warp-winforms-controls` is
+  only a router).
+
+## Final checks
+
+1. Every DI-resolved Form/UserControl has a parameterless ctor plus `(IServiceProvider) : this()`.
+2. Services are resolved in `OnLoad`/`EndInit` with a null guard; never in `InitializeComponent`.
+3. Builder calls use existing members; VB startup follows the WARP-host rule above.

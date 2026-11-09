@@ -2,31 +2,27 @@ using Expenses.Core;
 
 namespace Expenses.App.Views;
 
-internal sealed class ReminderOptionsView : UserControl
+public sealed partial class ReminderOptionsView : UserControl
 {
-    private readonly AppPreferences _draft;
-    private readonly CheckBox _show;
-    public ReminderOptionsView(AppPreferences draft)
+    private AppPreferences? _draft;
+
+    public ReminderOptionsView()
     {
-        _draft = draft;
-        AutoScroll = true;
-        _show = new CheckBox
-        {
-            Text = "&Show the previous session's active notes and reminders at startup",
-            Checked = draft.ShowRemindersOnStartup,
-            AutoSize = true,
-            Location = new Point(15, 20)
-        };
-        Controls.Add(_show);
-        Controls.Add(new Label
-        {
-            Text = "Global reminders appear at startup. Period reminders appear when that period opens.\n" +
-                "Dismissed reminders are retained but no longer displayed.",
-            AutoSize = true,
-            Location = new Point(15, 60)
-        });
-        AutoScrollMinSize = new Size(620, 150);
-        Size = new Size(680, 220);
+        InitializeComponent();
     }
-    public void Apply() => _draft.ShowRemindersOnStartup = _show.Checked;
+
+    public ReminderOptionsView(AppPreferences draft) : this() => LoadPreferences(draft);
+
+    public void LoadPreferences(AppPreferences draft)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        _draft = draft;
+        _show.Checked = draft.ShowRemindersOnStartup;
+    }
+
+    public void Apply()
+    {
+        var draft = _draft ?? throw new InvalidOperationException("Load a runtime preferences draft before applying reminder options.");
+        draft.ShowRemindersOnStartup = _show.Checked;
+    }
 }

@@ -1,113 +1,177 @@
 ---
 name: warp-api-decision-guide
-
-description: Use this skill as the FIRST step when the user asks how to do X with WARP or which WARP package should be used for a task, before diving into a topic-specific WARP skill. It maps a WinForms development task to the correct WARP-Toolkit NuGet package(s) and entry-point types.
-
-metadata: Latest NuGet version for required packages "0.9.323-preview.gb01532b307"
-
+description: >-
+  FIRST step for any task in a WinForms codebase that uses WARP-Toolkit
+  (WarpToolkit.* packages). Inventories the UI surfaces (Forms, modal dialogs,
+  UserControls), fixes the Designer hierarchy and runtime composition, then maps
+  the task to the WARP package, entry-point types and the owning warp-* skill.
+  Use before any topic-specific WARP skill; also use when asked "how do I do X
+  with WARP" or "which WARP package".
+metadata:
+  source: "WARP src (WinFormsApplicationBuilder, Templates, Containers, AI)"
+  versions: "references/versions.md"
 ---
 
 # WARP-Toolkit API Decision Guide
 
-You are working in a .NET WinForms codebase that uses the **WARP-Toolkit**
-(`WarpToolkit.*` packages). When the user describes a task, your first
-job is to pick the **right package(s) and entry-point types** before writing
-any code, and then either continue yourself or hand off to a more specific
-WARP skill.
+Thin router. Steps 0–2 mirror `winforms-api-decision-guide` (which owns them);
+WARP only swaps the *host* or the *API* of a surface after the surface itself is
+decided.
 
-For deep context on each package see
-`src/docs/GettingStarted/API-Overview.md` and the per-package files under
-`src/docs/reference/` in this repo.
+## Designer invariant (applies to every WARP surface)
 
+- Every app Form, modal dialog and UserControl is `partial` with a paired
+  `.Designer.cs` / `.Designer.vb`.
+- The parameterless constructor owns `InitializeComponent()`; a runtime/DI
+  constructor chains `: this()` and never calls `InitializeComponent` itself.
+- `InitializeComponent` is serialization: no services, live data binding, IO,
+  async, GPU init, `AddTab`, `AddWizardPage`, `ConfigureItem`, `WireUpCommands`.
+- The OOP Designer must open the surface with no host, DI container, network,
+  or WARP runtime service; design-time gets `NullServiceProvider`.
+- Runtime composition (tabs, wizard pages, DI-resolved child views, API keys,
+  renderers) happens in `OnLoad` / `ISupportInitialize.EndInit`, guarded.
+- Static controls and their serializable properties live in the Designer file,
+  never in the constructor body after `InitializeComponent`.
+- Decompose: one UserControl per tab, wizard page or complex region; the Form
+  hosts, it does not contain everything. Only `Dispose` in the Designer partial.
+- Render-only custom controls (`D2DControl`/`D2DPanel`/`Control` subclasses) may
+  be plain classes; `Form`/`D2DForm`/`UserControl` surfaces may not.
+- Rules of record: `winforms-designer-code` (serialization) and
+  `winforms-high-dpi-fluent-layout` (layout rules; modal footer:
+  [canonical modal footer](../winforms-high-dpi-fluent-layout/references/layout-examples.md#canonical-modal-footer)).
+  Cite them; do not restate or copy older one-file Form samples.
+- New Designer fields go **after** the methods in the Designer partial
+  (analyzer WFO3002); code samples obey this too.
+
+## Font, DPI and window contract (applies to every WARP surface)
+
+- One scaling root per window: the Form carries `AutoScaleMode.Font` and the
+  app font (`UseDefaultFont`, applied **before** geometry restore). Every hosted
+  tab/wizard/region UserControl is `AutoScaleMode.Inherit` with no own `Font`
+  or `AutoScaleMode.Dpi`; an explicit Font on a hosted ContainerControl is a
+  missed scale (parent skips it, its own `OnFontChanged` does not run).
+- Runtime font change = one transaction on the Form (`OnFontChanged` override,
+  Normal state only): snapshot Bounds + Min/Max, `SuspendLayout`, base (AutoScale
+  runs; `SuspendLayout` does not inhibit it), restore Min/Max then Bounds,
+  `ResumeLayout(true)`, then regenerate symbol images once. Skip while
+  Maximized and while `OnDpiChanged` is in progress; honor WM_DPICHANGED
+  suggested bounds. Rule of record:
+  [font-change-transaction](../winforms-high-dpi-fluent-layout/references/window-state.md#font-change-transaction),
+  [dpi-suggested-bounds](../winforms-high-dpi-fluent-layout/references/window-state.md#dpi-suggested-bounds).
+- After WM_DPICHANGED the observed `Font.SizeInPoints` is already DPI-scaled;
+  size icons from a stored logical point size × `DeviceDpi/96` or from the live
+  `Font.Height`, never both factors.
+- Window geometry: LOB main window first run ≈75% `Screen.WorkingArea` width /
+  80% height, centered on the chosen monitor; persist normal bounds as 96-DPI
+  DIPs relative to that monitor's `WorkingArea.Location` plus monitor id, DPI,
+  working area, schema version; maximized is a separate flag. WARP
+  `ApplyFormPlacement/SaveFormPlacement` is an absolute-pixel legacy schema —
+  migrate explicitly (`warp-app-services`). Rule of record:
+  [dip-schema](../winforms-high-dpi-fluent-layout/references/window-state.md#dip-schema),
+  [first-run-geometry](../winforms-high-dpi-fluent-layout/references/window-state.md#first-run-geometry).
+- Command ToolStrips/MenuStrips carry icons (`SymbolToolStrip` + `Symbol`
+  items); text-only is allowed only when the user states a text-domain intent
+  (`warp-toolstrip-icons`).
+- Command buttons never sit in a `FlowLayoutPanel`: nested-TLP footer
+  (`canonical-modal-footer`), transposed for vertical stacks; FlowLayout stays
+  for content. Modal non-MVVM dialogs: `Form.DataContext` holds the draft,
+  `AcceptButton`/`CancelButton`, `DialogResult` OK/Cancel (`warp-app-services`).
+
+## Workflow
+
+0. **Inventory surfaces.** List every Form, modal dialog and UserControl the
+   task touches or creates, including tab views and regions of a decomposed
+   complex form. Name each file pair (`X.cs` + `X.Designer.cs`).
+1. **Decide the Designer hierarchy.** Per surface: which static controls and
+   serializable properties belong in `InitializeComponent`; which child
+   UserControls are placed as Designer fields; parameterless ctor exists.
+2. **Decide runtime composition.** What is added in `OnLoad`/`EndInit` (tab
+   contents, wizard pages, DI-resolved views, key services, AI components'
+   runtime wiring) and how it is guarded when the surface is Designer-opened.
+3. **Only now choose WARP packages/APIs** from the table, and hand off to the
+   owning skill. Versions: `references/versions.md` — the project decides.
 
 ## Decision table
 
-| If the user wants to… | Reach for | Reference |
-|-----------------------|-----------|-----------|
-| Bootstrap a WinForms app with DI, configuration, logging, dark-mode, fluent `Use*` setup | `WarpToolkit.WinForms.AppServices` (+ `WarpToolkit.Desktop.AppServices`). Use `WinFormsApplication.CreateBuilder(args)` and `WinFormsApplicationBuilder` | `WarpToolkit.WinForms.AppServices.md`, `WarpToolkit.Desktop.AppServices.md` |
-| Show a message box / confirmation / input prompt **from a ViewModel** | `IDialogService` (contract in `Desktop.AppServices`, implementation registered via `AddWinFormsDialogService()` in `WinForms.AppServices`) | `WarpToolkit.Desktop.AppServices.md` |
-| Persist form bounds, splitter distances or grid column widths between runs | `IUserSettingsService` from `WarpToolkit.ComponentModel` + extensions in `WarpToolkit.WinForms.Extensions.UI.UIServiceExtensions` (`SaveFormBounds`, `TryApplyFormBounds`, `SaveDataGridViewColumnWidths`, …) | `WarpToolkit.WinForms.Extensions.md` |
-| Read an API key (OpenAI, Azure, Anthropic, …) from an environment variable | `EnvironmentVariableKeyService` from `WarpToolkit.WinForms.AppServices` with `WellKnownAIProviders` enum from `WarpToolkit.Desktop.AI`. Register via `services.AddLocalKeyRetrievalService()` | `WarpToolkit.WinForms.AppServices.md` |
-| A modern tab control / message box / wizard / file picker / bindable combo | `WarpToolkit.WinForms` (`FluentTabControl`, `FluentMessageBox`, `WizardContainer`, `FilePathPicker`, `BindableComboBox`, `TransparentPanel`, …) | `WarpToolkit.WinForms.md` |
-| Decorate a TableLayoutPanel with borders / error signalling / per-cell padding | `AdornerPanel` / `AdornerTableLayoutPanel` / `AdornerCellStyle` from `WarpToolkit.WinForms` (with layout primitives from `WarpToolkit.ComponentModel.GridLayouting`) | `WarpToolkit.WinForms.md` |
-| Walk the control tree, plug an `IValueConverter` into a `Binding`, apply dark-mode to a `DataGridView`, show a modal dialog async | `WarpToolkit.WinForms.Extensions` (`ControlExtensions`, `BindableComponentExtensions`, `DataGridViewExtensions.ApplyDarkMode`, `FormExtensions.ShowDialogAsync<T>`) | `WarpToolkit.WinForms.Extensions.md` |
-| An interactive in-process terminal pane, or collision-free filename generation | `WarpToolkit.WinForms.Specialized` (`ConsoleControl`, `FilenameDisambiguator`) | `WarpToolkit.WinForms.Specialized.md` |
-| GDI+-style drawing but **hardware accelerated** (Direct2D/DirectWrite) | Inherit from `D2DPanel` and draw via `D2DGraphics` in `WarpToolkit.WinForms.DirectX`. Each panel owns its own device-manager bundle. | `WarpToolkit.WinForms.DirectX.md` |
-| Render Markdown / formatted text with custom layout | `WarpToolkit.WinForms.Typography` (`ITypographyRenderer`, `Block`/`Inline`/`BulletedParagraph`, MarkDig integration) | `WarpToolkit.WinForms.Typography.md` |
-| Wire up `async` button clicks, await a form closing, freeze content with a spinner | `WarpToolkit.WinForms.Async` (`AsyncButton`, `AwaitableForm`, `AwaitableEvent<T>`, `ContentFreezePanel`) | `WarpToolkit.WinForms.Async.md` |
-| Format typed input (date, decimal, AI-described) bound to a `TextBox` | `WarpToolkit.WinForms.Async.TypedInputExtenders` (`DateFormatterComponent`, `DecimalFormatterComponent`, `AITypedFormatter<T>`) | `WarpToolkit.WinForms.Async.md` |
-| Add AI chat to a form (designer-droppable, provider-agnostic) | Drag an `AIChatServiceBase`-derived component from `WarpToolkit.WinForms.AI` onto the form. The full chat UI is `ChatView` from `WarpToolkit.WinForms.Chat` | `WarpToolkit.WinForms.AI.md`, `WarpToolkit.WinForms.Chat.md` |
-| Build prompts / parse streamed responses / declare `[AITemplate]` request types | `WarpToolkit.Desktop.AI` (`PromptBuilder`, `ReturnTokenParser`) and `WarpToolkit.Microsoft.Extensions.AI` (`AIChatClient<T>`, `AIChatHistory`, `[AITemplate]`, `[AITemplateSegment]`, `[AIGenerated]`) | `WarpToolkit.Desktop.AI.md`, `WarpToolkit.Microsoft.Extensions.AI.md` |
-| Inspect / rewrite C# source with Roslyn, preserving comments | `WarpToolkit.Desktop.Roslyn` (`DocumentExtensions`, `MemberDeclarationExtensions`, `ReplaceCommentsByGuids` / `ReplaceGuidsByComments`) | `WarpToolkit.Desktop.Roslyn.md` |
-| Port / migrate an entire VB.NET project (or every VB project in a `.sln`) to C# | **Don't hand-translate.** Generate a small Roslyn CLI that drives `WarpToolkit.Desktop.Roslyn` (`VisualBasicConverter.ConvertText` + the C#→C# WithEvents collapse pass) over the `.vbproj`/`.sln` — the library does the bulk algorithmically. Hand-fix only `// TODO(vb-convert):` markers (`ConversionResult.HasManualWork` / `Manual` diagnostics). | `warptoolkit-vb-to-csharp-converter` skill |
-| Show a Roslyn-classified source document in a control | `RoslynDocumentView` from `WarpToolkit.WinForms.Roslyn` | `WarpToolkit.WinForms.Roslyn.md` |
-| Add a designer-aware logger to the app | `WarpToolkit.Microsoft.Extensions` (`AddTimeStampedDebug`, `AddWinFormsFileLogger`, `UseWinFormsLogging`) | `WarpToolkit.Microsoft.Extensions.md` |
-| A sub-millisecond timer for animations or media | `HighPrecisionTimer` from `WarpToolkit.Windows.Interop.PrecisionTimer` | `WarpToolkit.Windows.Interop.md` |
-| A DI-aware component that receives the host form / container as `IServiceProvider` at designer time | Implement `IServiceProviderAssignable` (`WarpToolkit.ComponentModel`); attach `ServiceProviderAssignableComponentCodeDomSerializer` from `WarpToolkit.WinForms.Design` | `WarpToolkit.WinForms.Design.md`, `WarpToolkit.ComponentModel.md` |
-| Discover or inspect Windows Bluetooth devices, monitor the radio, or open protocol-neutral RFCOMM/GATT byte transports | `WarpToolkit.Windows.Bluetooth`; add `WarpToolkit.WinForms.Bluetooth` for `BluetoothServicesComponent` and `BluetoothDeviceListView` | `WarpToolkit.Windows.Bluetooth.md`, `WarpToolkit.WinForms.Bluetooth.md` |
-| Inspect local GitHub repos, list branches/commits, compose integration branches, or get an authenticated Octokit client | `WarpToolkit.WinForms.Github` (`ILocalGitRepositoryService`, `IGitBranchCompositionService`, `IGitHubClientFactoryService`) | `warp-github-git` skill |
+| If the task is… | Reach for | Owner skill |
+|---|---|---|
+| Bootstrap/retrofit app with DI, config, logging, dark mode, fluent `Use*` | `WinFormsApplication.CreateBuilder(args)` / `WinFormsApplicationBuilder` (`WarpToolkit.WinForms.AppServices`) | `warp-winforms-application-builder` |
+| Form/UserControl must be DI-resolvable (two ctors, `IServiceProvider` façade, deferral) | Canonical two-constructor shape | `warp-winforms-application-builder` |
+| Dialog/confirmation/input **from a ViewModel**; modal non-MVVM `DataContext` dialog; user settings incl. window geometry (DIP schema vs legacy `ApplyFormPlacement`); exception service; API keys | `IDialogService`, `IUserSettingsService`, `IWinFormsAppExceptionService`, `EnvironmentVariableKeyService` | `warp-app-services` |
+| Themed message box from UI code | `FluentMessageBox.Show(text, caption, …)` — no owner overload | `warp-messaging` |
+| Tabbed UI (one `Inherit` UserControl per tab, first-run 75%/80% sizing, scrolling) | `FluentTabControl.AddTab(title, ContainerControl)` at runtime | `warp-fluent-tab-control` |
+| Adorned TLP/borders/error flash; transparent overlay; nested-TLP footer, GroupBox AutoSize chain, spring-row rules | `AdornerPanel`, `AdornerTableLayoutPanel`, `TransparentPanel` | `warp-containers-layout` |
+| Multi-page wizard | `WizardContainer.AddWizardPage`; `WizardDialogResult.Finished` | `warp-wizard` |
+| Path picker, bindable combo, float sliders; adaptive input minima; date entry policy | `FilePathPicker`, `BindableComboBox`, `EditFloatingPointSlider` | `warp-input-controls` |
+| Grids with Dark-mode theming or template rows | `WarpDataGridView`, `GridView` + `GridViewItemTemplate` | `warp-data-grids` |
+| AutoView / property-to-control factories | `AutoViewBase<T>`, `TypeToControlFactoryBase` (scaffolding only) | `warp-binding-autoview` |
+| Commands/MVVM glue, `WireUpCommands` | `WarpToolkit.WinForms.Extensions` command helpers | `warp-commands-mvvm` |
+| Control-tree walk, converters, `ShowDialogAsync<T>` (`IModalDialogResult<T>`), DataGridView dark mode | `WarpToolkit.WinForms.Extensions` | `warp-winforms-extensions` |
+| Fluent glyphs on ToolStrip/Menu/Status items, TreeView/ListView, app/tray icons | `SymbolToolStrip`/`SymbolMenuStrip`/`SymbolStatusStrip` + `Symbol*` items with `FontSymbol`; `ApplySymbols`, `ToIcon`; legacy `ConfigureItem` | `warp-symbols` (catalog), `warp-toolstrip-icons` (recipes); generic icon factory → `winforms-toolstrip-icons` |
+| In-process console, hex dump, unique filenames | `ConsoleControl`, `HexAsciiDumper`, `FilenameDisambiguator` | `warp-console-diagnostics` |
+| AI chat component + chat UI, prompts, streaming parser, history | `AIChatClientComponent`, `ChatView`, `[AITemplate]`, `ReturnTokenParser`, `ObservableChatHistory` | `warp-winforms-ai` |
+| Hardware-accelerated 2D drawing | `D2DPanel`/`D2DControl` (render controls), `D2DForm` (surface) | `warp-directx-getting-started` |
+| DirectComposition visuals, exclusive top-level rendering, DX text editors, internal render approaches | `WarpToolkit.WinForms.DirectX` visuals | `warp-directx-using-visuals`, `warp-directx-dcomp-exclusive-tlw`, `warp-directx-text-editors`, `warp-directx-internal-approaches` |
+| Spell checking in editors/chat | `WarpToolkit.Windows.Spelling` provider | `warp-text-spelling` |
+| GitHub/Octokit client, local git inspection, branch composition | `WarpToolkit.WinForms.Github` services | `warp-git-and-github-api` |
+| Windows Maps (experimental) | project brief + reference | `warp-windows-maps-experimental` |
+| Roslyn source rewriting, VB→C# conversion | `WarpToolkit.Desktop.Roslyn` (`VisualBasicConverter.ConvertText`) — no dedicated skill in this set; drive the library from a small CLI, hand-fix only `// TODO(vb-convert):` markers | — |
+| Designer-aware logger, precision timer, Bluetooth, Typography, Async helpers | `WarpToolkit.Microsoft.Extensions`, `WarpToolkit.Windows.Interop`, `WarpToolkit.Windows.Bluetooth`, `WarpToolkit.WinForms.Typography`, `WarpToolkit.WinForms.Async` — verify installed API; no dedicated skill | — |
 
-## Hand-off targets
+Generic WinForms concerns are owned by the WinForms set and are not restated
+here: `winforms-designer-code`, `winforms-high-dpi-fluent-layout`,
+`winforms-databinding`, `winforms-async`, `winforms-mvvm`,
+`winforms-options-dialog`.
 
-When the chosen topic has its own dedicated skill, prefer that skill's
-guidance over generic reasoning. Available WARP topic skills (in this repo
-under `src/CopilotSkills/`):
+## Startup rules (C# and VB)
 
-- **`warp-app-services`** — `WarpToolkit.Desktop.AppServices` +
-  `WarpToolkit.WinForms.AppServices` (hosting, DI, dialogs, settings, keys).
+- C#: `Program.cs` with `[STAThread] Main` → `WinFormsApplication.CreateBuilder(args)…Build().Run()`.
+  `UseStartupForm<TForm>()` requires `TForm : Form, new()` — the parameterless
+  ctor is mandatory, not optional.
+- VB, **WARP-hosted** (uses `WinFormsApplicationBuilder`): `Program.vb` with
+  `Sub Main` and `<StartupObject>Sub Main</StartupObject>`; the Application
+  Framework is off because `WinFormsApplication.Run` owns `Application.Run`.
+  This is what every WARP VB template (`ModernWinFormsApp`, `WinFormsSysTrayApp`,
+  `MvvmWinFormsApp`, DirectX apps) ships.
+- VB, **classic** (no WARP host, Application Framework on): no `Program.vb`;
+  `ApplicationEvents.vb` owns startup — the WinForms-set contract. Do not add a
+  WARP host to such an app without switching it to the `Sub Main` model.
+- Builder fluent members that exist: `UseStartupForm`, `UseHighDpiMode`,
+  `UseColorMode`, `UseDefaultFont`, `UseLegacyVisualStyles(bool)`,
+  `UseVisualStylesMode(VisualStylesMode)`, `UseTextRenderingV2`,
+  `UseFormRevealMode`, `UseProjectSettings`, `AllowWinFormsJsonAppSettings`,
+  `UseWinForms{Release,Debug,ReleaseOrDebug}Logger`. There is **no**
+  `UseVisualStyles(bool)`.
 
-- **`warp-winforms-application-builder`** — Bootstrapping
-  `WinFormsApplication` for new apps **and** retrofitting an existing
-  `Application.Run(...)` codebase, plus the Form-as-`IServiceProvider`
-  preparation required by every `BindableServiceProviderComponent`-based
-  component (AI services, WebView2-backed `ChatView`, custom DI-aware
-  components). Consult this skill first whenever a feature requires DI.
+## Anti-patterns
 
-- **`warp-winforms-controls`** — `WarpToolkit.WinForms`,
-  `WarpToolkit.WinForms.Extensions`, `WarpToolkit.WinForms.Specialized`.
+- `Application.Run(new MainForm())` next to `WinFormsApplicationBuilder`.
+- DI-only constructor on a Form/UserControl (no parameterless path, or
+  `InitializeComponent` called from the DI ctor).
+- `MessageBox.Show` from view-models; `FluentMessageBox.Show(owner, …)` (no such overload).
+- Composing tabs/wizard pages/`ConfigureItem` inside `InitializeComponent`.
+- Setting `FormBorderStyle`/`WindowState`/render-mode properties in the ctor
+  body instead of the Designer file.
+- Hosted views with their own `Font`/`AutoScaleMode.Dpi`; restoring saved pixel
+  bounds before the font settles; locking outer bounds during WM_DPICHANGED.
+- Text-only command toolbars without a stated text-domain intent; OK/Cancel in
+  a `FlowLayoutPanel`; `DateTimePicker`/`MonthCalendar` as default date entry.
+- Sharing `D2DDeviceManager`/`IDWriteFactory` across panels on different threads.
+- Hand-translating VB→C# file by file in chat.
+- Inventing a packaging/setup vehicle: deployment is owned by the WinForms
+  set's setup guidance (unpackaged, single-project MSIX, WiX or WAP — one choice).
 
-- **`warp-fluent-tab-control`** — The mandatory "one UserControl per
-  tab page" pattern, host-form sizing caps (≤ 75% of screen, ≤ 90% of
-  parent), and when a tab UserControl needs its own scrolling layer.
+## Per-project persistence
 
-- **`warp-winforms-ai`** — `WarpToolkit.Desktop.AI`,
-  `WarpToolkit.Microsoft.Extensions.AI`, `WarpToolkit.WinForms.AI`,
-  `WarpToolkit.WinForms.Chat`.
+Append `assets/agents-md/warp-winforms.md` (WARP routes + version pin) below the
+WinForms base fragment `winforms-api-decision-guide/assets/agents-md/winforms-app.md`
+in the consuming repository's `AGENTS.md`; fill placeholders only.
 
-- **`warp-github-git`** — `WarpToolkit.WinForms.Github`
-  (GitHub auth/client helpers, local Git repository inspection, branch metadata,
-  and safe branch composition through temporary worktrees).
+## Final checks
 
-- **`warptoolkit-vb-to-csharp-converter`** — building a `vbconvert`-style CLI on
-  `WarpToolkit.Desktop.Roslyn` that ports a whole VB project to C#: the
-  `ConvertText` / `ConversionOptions` API, the project-wide WithEvents and
-  constructor collectors, the C#→C# WithEvents collapse post-pass, and
-  MSBuildWorkspace wiring. Consult this whenever a VB→C# migration is indicated —
-  the library does the algorithmic bulk so the model never hand-translates.
-
-## Anti-patterns to avoid
-
-- **Do not** roll your own `Application.Run(new MainForm())` startup when an
-  existing app uses `WinFormsApplicationBuilder` — extend the builder
-  pipeline instead.
-
-- **Do not** use `MessageBox.Show` directly from view-models. Use
-  `IDialogService` so the view-model stays testable and UI-framework agnostic.
-
-- **Do not** instantiate `IChatClient` providers directly when an
-  `AIChatServiceBase`-derived component already exists on the form — the
-  component is a registered service in the DI container and the place where
-  Designer-time properties (model, temperature, etc.) live.
-
-- **Do not** share an `IDWriteFactory` or `D2DDeviceManager` between
-  `D2DPanel` instances on different threads. Each panel owns its own bundle
-  by design.
-
-- **Do not** create a `Program.cs` for VB. WARP follows the VB Application
-  Framework conventions instead.
-
-- **Do not** hand-translate a VB→C# migration file-by-file in chat — it burns
-  millions of tokens and drifts in style. Generate a CLI on the WARP-Roslyn
-  converter (`WarpToolkit.Desktop.Roslyn`) that does the algorithmic bulk, then
-  review only the `// TODO(vb-convert):` markers / `Manual` diagnostics. See the
-  `warptoolkit-vb-to-csharp-converter` skill.
+1. Every surface in the inventory has a Designer pair and a parameterless ctor.
+2. Nothing in `InitializeComponent` needs a host, service, data or GPU.
+3. Exactly one owner skill was chosen per requirement; its version policy
+   (`references/versions.md`) was respected — no "latest" bump.
+4. One scaling root per window, hosted views `Inherit`, icons regenerated once
+   per font/DPI baseline, geometry stored as monitor-relative DIPs.

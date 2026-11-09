@@ -1,11 +1,10 @@
 ---
 name: winforms-options-dialog
 description: >-
-  Builds ergonomic Tools/Options and preferences dialogs with one Designer-friendly
-  UserControl per category, typed label/value fields, nested value/dialog pickers,
-  grouped choices and accessible category navigation. Uses WARP FluentTabControl
-  when available; otherwise uses an available vendor tab host or ToolStrip/panel
-  navigation rather than styling a native TabControl.
+  USE FOR: Tools/Options and preferences dialogs with one Designer-openable
+  UserControl per category, typed fields, and accessible navigation. DO NOT USE
+  FOR: choosing the packaging vehicle, or for styling a native TabControl.
+  WARP FluentTabControl is only the host after the category surfaces exist.
 ---
 
 # Tools/Options composition
@@ -20,8 +19,16 @@ description: >-
   to [Designer](../winforms-designer-code/SKILL.md).
 - Do not use a native WinForms `TabControl` to style this dialog. Select the
   navigation host below without adding a new vendor dependency just for styling.
-- Edit a draft. Commit/persist only after OK/Apply and successful validation;
-  Cancel, Escape, the window close button and cancelled pickers leave saved
+- Edit a draft. On .NET 8+ the dialog's draft is `Form.DataContext`. Below that,
+  use one explicit draft field. Do not treat that assignment as an MVVM conversion.
+- OK and Cancel are `AcceptButton` and `CancelButton`. For an uncomplicated
+  accept, the buttons' `DialogResult` is `OK` and `Cancel`. A simple synchronous
+  rejection sets `e.Cancel` in `OnFormClosing` and leaves the dialog open.
+  Cross-field or async validation does not accept early. See
+  [async](../winforms-async-apis/SKILL.md) and
+  [databinding](../winforms-databinding/SKILL.md).
+- Commit or persist only after OK/Apply and successful validation.
+  Cancel, Escape, the window close button, and cancelled pickers leave saved
   values and live application state unchanged.
 - Preserve existing defaults when introducing an option. Explain units, bounds
   and sentinel values beside the field; do not silently clamp invalid saved input.
@@ -57,7 +64,7 @@ and dialog-service integration; do not dispose shared settings services from a p
 | Value | Default editor |
 |---|---|
 | Text | `TextBox` |
-| Date/time or currency requiring formatted/masked entry | `MaskedTextBox` (the WinForms masked-edit control); define culture, mask and typed validation |
+| Date/time or currency requiring formatted/masked entry | `MaskedTextBox`; define culture, mask, and typed validation. Avoid `DateTimePicker` and `MonthCalendar` by default. That is an accessibility and dark-mode preference, not a claim the platform lacks them |
 | Numeric value with a meaningful/longer range | `NumericUpDown`; set actual minimum, maximum, precision and increment |
 | Boolean/classic option | `CheckBox`; use `Appearance.ToggleSwitch` in supported .NET 11 modern rendering |
 | Mutually exclusive named choices | RadioButtons inside one logical GroupBox |
@@ -93,10 +100,13 @@ adaptive sizing contract; do not invent properties on it.
 ## Grouping, spacing and access
 
 Use clear label/value pairs and consistent vertical **control Margins** between
-logical rows. Nest coherent groups in AutoSize/GrowAndShrink GroupBoxes rather
-than turning a long page into a dense unstructured grid. Keep radio choices in
+logical rows. A GroupBox in a table cell is `Dock = Fill`, `AutoSize`,
+`GrowAndShrink`, and contains only an inner table with those settings. Do not
+turn a long page into a dense unstructured grid. A large options grid or tab
+viewport is the single Percent row before the footer. Do not add a second
+Percent 100 spring beside it. Keep radio choices in
 the same group. Large pages scroll inside their UserControl; actions remain
-outside that viewport in the canonical modal footer.
+outside that viewport in the [canonical modal footer](../winforms-high-dpi-fluent-layout/references/layout-examples.md#canonical-modal-footer).
 
 Provide mnemonics and sensible TabIndex order. Inputs without a self-describing
 caption need an AccessibleName; ambiguous pickers need a concise action name.
@@ -105,8 +115,7 @@ not to repeat captions or announce every decorative label.
 
 ## Final checks
 
-1. Each category roundtrips independently in the Designer; navigation is not a
-   styled native TabControl.
+1. Each category UserControl is a partial pair and roundtrips independently in the Designer. Navigation is not a styled native TabControl. WARP, if used, replaced only the host.
 2. Test large fonts/text scale, DPI and narrow viewports: editors, picker values,
    category headers and pinned actions remain readable or deliberately scrollable.
 3. Verify keyboard/screen-reader context and OK/Apply/Cancel/picker-cancel behavior.

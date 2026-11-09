@@ -10,6 +10,10 @@ metadata:
 
 # Console, dumps and export filenames
 
+> Designer pair rule: every Form, modal dialog and UserControl touched here is `partial` with a `.Designer.*`,
+> a parameterless ctor owning `InitializeComponent()`, and a runtime ctor `(IServiceProvider) : this()`;
+> services/IO/async start in `OnLoad`, never in `InitializeComponent` (`warp-winforms-application-builder`).
+
 ## Critical constraints
 
 - ConsoleControl is a RichTextBox-based surface, not a promise of terminal/PTY
@@ -119,3 +123,9 @@ required filesystem locations in a consumer.
 1. Async output/commands finish or report failure before disposing the control.
 2. Final dump bytes and intended formatting are emitted.
 3. Export path generation, write failures and filename/resource ownership are explicit.
+
+## References
+
+- Detailed member tables and samples: [references/api.md](references/api.md)
+- Package versions: [versions.md](../warp-api-decision-guide/references/versions.md) (project pin wins; never guess "latest")
+- Compatibility alias: `warptoolkit-console-diagnostics` routes here; do not load both.

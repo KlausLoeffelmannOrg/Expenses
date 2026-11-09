@@ -12,15 +12,21 @@ metadata:
 
 # Focused WinForms extensions
 
+> Designer pair rule: every Form, modal dialog and UserControl touched here is `partial` with a `.Designer.*`,
+> a parameterless ctor owning `InitializeComponent()`, and a runtime ctor `(IServiceProvider) : this()`;
+> services/IO/async start in `OnLoad`, never in `InitializeComponent` (`warp-winforms-application-builder`).
+
 ## Critical constraints
 
 - Use the actual helper namespace/signature; generic predicate overloads differ.
 - `AddBindingConverter` modifies an **existing** binding; it does not create one.
-- `CenterToScreen` returns a rectangle, not a mutation. Typed ShowDialog returns
+- The WARP `CenterToScreen` extension returns a rectangle (from `Screen.Bounds`),
+  not a mutation; it is not WinForms' `Form.CenterToScreen()`. Typed ShowDialog returns
   `IModalDialogResult<T>`, not WinForms DialogResult.
 - Control-tree operations run on the owning UI thread. Read `winforms-async-apis`
   for marshaling; `winforms-designer-code` for declarative initialization.
-- Shared layout/DPI belongs to `winforms-high-dpi-fluent-layout`. This is not a
+- Shared layout/DPI belongs to `winforms-high-dpi-fluent-layout` (rules, not its
+  older one-file Form samples). This is not a
   broad control catalog or a package-selection router.
 
 ## Workflow and traversal
@@ -77,13 +83,23 @@ modes, converter lifetime and validation.
 
 ## Form geometry and typed modal results
 
-`CenterToScreen(form, screen = null, horizontalFillGrade = 50,
-verticalFillGrade = 50)` computes a rectangle using **screen Bounds**, not
-WorkingArea. Assign it deliberately only when full-screen bounds are intended;
-use canonical working-area constraints for ordinary windows.
+The WARP extension `CenterToScreen(this Form form, Screen? screen = null,
+int horizontalFillGrade = 50, int verticalFillGrade = 50)`
+(`WarpToolkit.WinForms.Extensions.UI.FormExtensions`, verified 0.9.852) returns
+a rectangle computed from **`Screen.Bounds`** (taskbar included) — unlike the
+WinForms `Form.CenterToScreen()` method, which centers on `Screen.WorkingArea`
+but does not size or choose a monitor. Assign the extension's result only when
+full-screen-based bounds are intended;
+LOB first-run geometry is ≈75%/80% of `Screen.WorkingArea`, centered, and
+persisted window geometry is a monitor-relative DIP schema (`warp-app-services`;
+[dip-schema](../winforms-high-dpi-fluent-layout/references/window-state.md#dip-schema)).
 
 `GetRestorableBounds()` returns Bounds when Normal and RestoreBounds when
-Minimized/Maximized; unknown state throws.
+Minimized/Maximized; unknown state throws. `RestoreBounds` is physical pixels
+of the last Normal state and is not rescaled by a later font change — snapshot
+the Normal bounds yourself before maximizing instead of unscaling pixels.
+`TryApplyFormBounds`/`ApplyFormPlacement` and their `Save*` pairs persist
+absolute pixels + `FormWindowState` (legacy schema; migrate explicitly).
 
 ```csharp
 using WarpToolkit.Desktop.AppServices;

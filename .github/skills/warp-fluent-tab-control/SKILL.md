@@ -1,14 +1,33 @@
 ---
 name: warp-fluent-tab-control
-
 description: Use this skill when adding, sizing, or scoping tabbed UI around WARP's FluentTabControl, including the one-UserControl-per-tab pattern and scrolling rules.
-metadata: Required NuGet packages "WarpToolkit.WinForms.Containers"; latest version "0.9.323-preview.gb01532b307"
-
+metadata:
+  source: "WARP src\\WarpToolkit.WinForms\\Containers\\FluentTabControl"
+  versions: "../warp-api-decision-guide/references/versions.md"
 ---
 
 # WARP FluentTabControl
 
-`FluentTabControl` (in `WarpToolkit.WinForms.Containers`) is WARP's modern,
+## Designer invariant (applies to every WARP surface)
+
+- The host Form and every tab view are Designer pairs: `partial` + `.Designer.*`,
+  parameterless ctor owning `InitializeComponent()`, DI ctor `(IServiceProvider) : this()`.
+- `InitializeComponent` places the `FluentTabControl` (Dock/Size/Anchor) and may
+  instantiate tab UserControls as fields; `AddTab(...)` and service resolution
+  happen in `OnLoad`, guarded for a null provider.
+- Decide tab views (which UserControls, their static controls) *before* choosing
+  this host — see `warp-api-decision-guide` Workflow 0.
+- Tab views are `AutoScaleMode.Inherit` with no own `Font` or `AutoScaleMode.Dpi`;
+  the host Form is the sole scaling root (`AutoScaleMode.Font`). An explicit Font
+  on a tab view is a missed scale: the Form skips it during font auto-scale and
+  the view's own `OnFontChanged` never runs.
+- Designer `ClientSize` is the floor; the first-run geometry below is a runtime
+  clamp applied in `OnLoad` after the app font and AutoScale settled, never
+  serialized. Later runs restore the persisted DIP geometry instead
+  (`warp-app-services`, [dip-schema](../winforms-high-dpi-fluent-layout/references/window-state.md#dip-schema)).
+
+`FluentTabControl` (namespace `WarpToolkit.WinForms.Containers`, package
+`WarpToolkit.WinForms`) is WARP's modern,
 dark-mode-aware tab control. Its API is intentionally small — but the
 **right way to use it** is not derivable from the API alone, because the
 control delegates layout, sizing and scrolling to whatever you put inside.
@@ -20,11 +39,11 @@ control delegates layout, sizing and scrolling to whatever you put inside.
 
 | Member | Signature / shape |
 |--------|------------------|
-| `AddTab` | `void AddTab(string tabPageTitle, ContainerControl tabContent)` |
+| `AddTab` | `void AddTab(string tabPageTitle, ContainerControl tabContent)`; overload `(string, ContainerControl, ISymbol symbol)` |
 | `CurrentTabIndex` | `int { get; set; }` |
 | `CurrentTab` | `Control? { get; }` |
 | `Tabs` | `IEnumerable<Panel>` (the page hosts) |
-| `TabChanged` | `event EventHandler?` |
+| `TabChanged` | `event EventHandler<TabChangeEventArgs>?` (`Details`, `TabIndex`, `OptionText`) |
 | `OnFontChanged` | tab-header font tracks `Font + 1pt` |
 
 Critical detail: `AddTab` takes a **`ContainerControl`**, not a `Control`.
@@ -101,7 +120,12 @@ Designer canvas does not push the form off a 1080p monitor.
 
 Use the **more restrictive** of:
 
-1. **≤ 75% of the current screen's working area** — for top-level forms.
+1. **First-run LOB main window: ≈75% of the chosen monitor's
+   `Screen.WorkingArea` width and 80% of its height** (taskbar excluded),
+   centered on that monitor — for top-level forms on first run only; persisted
+   DIP geometry wins afterwards. Small modal/tool dialogs are not sized this way.
+   Rule of record:
+   [first-run-geometry](../winforms-high-dpi-fluent-layout/references/window-state.md#first-run-geometry).
 2. **≤ 90% of the parent control's client area** — for embedded scenarios
    (e.g. inside an MDI parent, a split container, or another UserControl).
 
@@ -113,9 +137,17 @@ applicable cap, and accept that the affected tabs will need to scroll.
 ```csharp
 // In MainForm.OnLoad (or wherever you finalize layout — never inside
 // InitializeComponent). This runs in regular code, so modern C# is fine.
+// Preconditions: app font already applied (UseDefaultFont) and AutoScale
+// settled, so every measured size is at the final font/DPI baseline.
 protected override void OnLoad(EventArgs e)
 {
     base.OnLoad(e);
+
+    if (TryRestoreDipGeometry())      // persisted schema (warp-app-services)
+    {
+        EnsureTabsCanScrollIfClipped(_fluentTab, ClientSize);
+        return;
+    }
 
     Size desired = ComputePreferredClientSize(_fluentTab);
     Size cap     = ComputeHostSizeCap(parent: this);
@@ -126,6 +158,11 @@ protected override void OnLoad(EventArgs e)
         Math.Max(MinimumSize.Height, Math.Min(desired.Height, cap.Height)));
 
     ClientSize = final;
+    // WinForms Form.CenterToScreen() centers on Screen.WorkingArea (taskbar excluded)
+    // but neither sizes to 75%/80% nor picks a target monitor; the WARP extension
+    // form.CenterToScreen(screen, fillGrade…) uses Screen.Bounds (taskbar included).
+    // Center on the chosen monitor's WorkingArea explicitly instead.
+    CenterOnWorkingArea(Screen.FromControl(this));
     EnsureTabsCanScrollIfClipped(_fluentTab, final);
 }
 
@@ -153,14 +190,16 @@ private static Size ComputePreferredClientSize(FluentTabControl tab)
 
 private static Size ComputeHostSizeCap(Control parent)
 {
+    // Chosen monitor: the one the form is on (or the user's saved monitor,
+    // falling back to the primary one when it is gone).
     Form? top = parent.FindForm();
     Screen screen = top is not null
         ? Screen.FromControl(top)
         : Screen.PrimaryScreen!;
 
-    // 75% of current screen working area.
+    // First-run cap: 75% width / 80% height of the working area (no taskbar).
     Rectangle wa = screen.WorkingArea;
-    Size screenCap = new((int)(wa.Width * 0.75), (int)(wa.Height * 0.75));
+    Size screenCap = new((int)(wa.Width * 0.75), (int)(wa.Height * 0.80));
 
     // 90% of parent client area — only when not the top-level form.
     if (parent is Form)
@@ -308,9 +347,16 @@ regular constructor body **after** `InitializeComponent` has returned.
 
 ## Where to look next
 
-- Modern controls around the tab (FluentMessageBox, wizards,
-  FilePathPicker, BindableComboBox) — `warp-winforms-controls`.
+- Modern controls around the tab — `warp-messaging` (FluentMessageBox),
+  `warp-wizard`, `warp-input-controls` (FilePathPicker, BindableComboBox),
+  `warp-containers-layout`.
 - Wiring a UserControl into DI so it can receive ViewModels / services —
   `warp-winforms-application-builder`.
 - Adding an AI chat tab — `warp-winforms-ai` (`ChatView` is a
   designer-droppable UserControl that fits this pattern out of the box).
+
+## Final checks
+
+1. Host Form and each tab view are Designer pairs with a parameterless ctor; `AddTab` runs in `OnLoad`.
+2. Screen caps are runtime clamps; the Designer `ClientSize`/`Size` is the floor.
+3. Scrolling is owned by the tab UserControl, not the strip.

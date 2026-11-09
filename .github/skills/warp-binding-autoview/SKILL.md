@@ -23,7 +23,7 @@ metadata:
   types; do not infer a complete generation algorithm from the dictionary.
 - Shared binding, Designer and generated field layout belong to
   `winforms-databinding`, `winforms-designer-code`,
-  `winforms-high-dpi-fluent-layout`, respectively.
+  `winforms-high-dpi-fluent-layout` (its rules, not its older one-file Form samples), respectively.
 
 ## Actual wrapper
 
@@ -54,7 +54,8 @@ Namespace `WarpToolkit.WinForms.Containers`:
 - `AutoViewControlMappingBase.AddMapping<TProperty,TControlFactory>()` requires
   `TControlFactory : TypeToControlFactoryBase, new()`.
 - `DefaultMapping` is `Dictionary<Type,Type>`. Defaults include string→TextBox,
-  int→NumericUpDown, bool→CheckBox, DateTime→DateTimePicker,
+  int→NumericUpDown, bool→CheckBox, DateTime→DateTimePicker (override per the
+  `warp-input-controls` date-entry policy unless a calendar UI is requested),
   List&lt;string&gt;→ComboBox, FileInfo/DirectoryInfo→FilePathPicker.
 - Adding a mapping before first default access initializes an empty dictionary;
   do not assume built-in defaults are merged automatically.
@@ -91,7 +92,15 @@ Read `warp-input-controls` for BindableComboBox's SelectedBindingValue, IList
 DataContext gating and ValueNotFoundException. Generated controls inherit ambient
 colors; custom factories have no special built-in theme handling.
 
+## Final checks
+
 1. Example host and factory satisfy the actual generic constraints.
 2. Generation/binding status is honest; application construction is explicit.
 3. Real UI follows the named Designer/layout owners, not an opaque helper pretending
    to round-trip through InitializeComponent.
+
+## References
+
+- Detailed member tables and samples: [references/api.md](references/api.md)
+- Package versions: [versions.md](../warp-api-decision-guide/references/versions.md) (project pin wins; never guess "latest")
+- Compatibility alias: `warptoolkit-binding-autoview` routes here; do not load both.

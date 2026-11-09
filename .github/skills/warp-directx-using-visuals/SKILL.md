@@ -1,7 +1,9 @@
 ---
 name: warp-directx-using-visuals
 description: Use this skill for WARP-DirectX apps with a render/animation loop — games, info tables, dashboards, and fullscreen kiosk scenes — that need flicker-free animation and complex scene composition via retained DirectComposition Visuals (sprites). It explains the Visuals collection (Visuals.AddNew, D2DVisual.Bounds/Visible/Transform), z-order (BringToFront/SendToBack), the two ways to draw a visual's content — the render-thread-safe D2DVisual.PaintContent callback (required for background render modes) and immediate-mode D2DGraphics.FromVisual (D2DWinFormsClassic only) — invalidating content with InvalidateContent, committing changes with CommitVisualsAsync, the PreserveLastFrame/TargetFrameRate/VSyncEnabled loop knobs, and how to drive frames from a high-precision timer.
-metadata: Required nuget packages "WarpToolkit.WinForms.DirectX", "WarpToolkit.Windows.Interop"; latest version "0.9.219-preview.g61ade857e5"
+metadata:
+  source: "WARP src\\WarpToolkit.WinForms.DirectX\\Visuals; src\\WarpToolkit.Windows.Interop"
+  versions: "../warp-api-decision-guide/references/versions.md"
 ---
 
 # WARP DirectX — Using Visuals (render loop, animation, scene composition)
@@ -22,8 +24,11 @@ metadata: Required nuget packages "WarpToolkit.WinForms.DirectX", "WarpToolkit.W
 Hosts (`D2DPanel`, `D2DForm`, `D2DControl`) expose a retained `Visuals`
 collection (`D2DVisualCollection`).
 
-Current preview version: `0.9.219-preview.g61ade857e5`.
-                        
+Packages: `WarpToolkit.WinForms.DirectX`, `WarpToolkit.Windows.Interop`; version per
+project pin / [versions.md](../warp-api-decision-guide/references/versions.md).
+Render controls shown here are single-file by design; the Form hosting them stays a
+Designer pair (`warp-directx-getting-started`).
+
 ## The Visual API
 
 ```csharp
@@ -249,3 +254,9 @@ snapshot any WinForms state on the UI thread first.
 - **Do not** use wall-clock deltas from a low-resolution timer for motion — use a
   high-precision timer / `Stopwatch.GetElapsedTime` so animation is smooth and
   frame-rate independent.
+
+## Final checks
+
+1. Visual content is drawn via `PaintContent` in background modes; `FromVisual` only in `D2DWinFormsClassic` on the UI thread.
+2. One `CommitVisualsAsync` per logical frame; movement does not trigger content redraw.
+3. Host Form stays a Designer pair; loop start is guarded for `DesignMode`.

@@ -11,6 +11,10 @@ metadata:
 
 # Wizard pages and navigation
 
+> Designer pair rule: every Form, modal dialog and UserControl touched here is `partial` with a `.Designer.*`,
+> a parameterless ctor owning `InitializeComponent()`, and a runtime ctor `(IServiceProvider) : this()`;
+> services/IO/async start in `OnLoad`, never in `InitializeComponent` (`warp-winforms-application-builder`).
+
 ## Critical constraints
 
 - WizardPage constructor is internal; call AddWizardPage, never new WizardPage.
@@ -23,6 +27,11 @@ metadata:
 - Page/layout/Designer rules belong to `winforms-high-dpi-fluent-layout` and
   `winforms-designer-code`. Existing internal fixed-button implementation is not
   a recipe to copy; do not invent a public layout knob to replace it.
+- Page content UserControls are `AutoScaleMode.Inherit` with no own `Font` or
+  `AutoScaleMode.Dpi`; the wizard dialog/host Form is the sole scaling root. An
+  explicit Font on a page is a missed scale (parent skips it, its own
+  `OnFontChanged` never runs). The dialog's DeviceDpi/96 sizing is the host's
+  concern, never re-applied inside a page.
 
 ## Container contract
 
@@ -76,13 +85,20 @@ for optional pages, and do not assume container-level PageValidating/Completed.
 The dialog computes/scales its size with DeviceDpi/96; Automatic uses larger buttons
 above 120 DPI. Default title font is a derived bold font; custom fonts need an owner.
 Test actual shipped wizard layout at target DPI rather than claiming it automatically
-matches newly authored canonical modal layouts.
+matches the WinForms [canonical modal footer](../winforms-high-dpi-fluent-layout/references/layout-examples.md#canonical-modal-footer).
 
 Fixed-height native wizard buttons can clip modern renderer metrics or large
 fonts. Increasing the Form size alone does not fix a fixed-height footer. If the
 consuming package has no supported adaptive footer API, prefer a library fix;
-otherwise an explicitly app-owned Designer-compatible wizard dialog may use the
-canonical modal footer. Preserve page navigation/review/cancel semantics and the
+otherwise an explicitly app-owned, Designer-pair wizard dialog (parameterless
+ctor, `.Designer.*`) may use the canonical modal footer linked above — apply its
+rules (nested outer 2×2 + inner equal-percent TLP, AutoSize/GrowAndShrink chain,
+Dock Fill buttons, captions >30 chars wrapped deliberately; never a
+`FlowLayoutPanel` for Back/Next/Finish/Cancel; the page viewport is the single
+Percent spring row — no second Percent row beside it, see
+[resizable viewport](../winforms-high-dpi-fluent-layout/references/layout-examples.md#resizable-viewport)),
+not older one-file Form samples. Preserve page
+navigation/review/cancel semantics and the
 Finish-only commit gate. Do not reflect into private fields, reparent internal
 library buttons or invent an unverified public layout property.
 
@@ -91,3 +107,9 @@ library buttons or invent an unverified public layout property.
 1. Pages use the supported factory and separately designed content.
 2. Validation/cancellation and skipped/backward pages behave intentionally.
 3. Accepted state commits only on Finished; dialog/controls/fonts have explicit lifetime.
+
+## References
+
+- Detailed member tables and samples: [references/api.md](references/api.md)
+- Package versions: [versions.md](../warp-api-decision-guide/references/versions.md) (project pin wins; never guess "latest")
+- Compatibility alias: `warptoolkit-wizard` routes here; do not load both.

@@ -1,21 +1,29 @@
 ---
 name: warp-directx-getting-started
-
 description: Use this skill get first-steps for how to use Direct2D and DirectWrite via the WARP-Toolkit Direct2D/DirectWrite libraries, when tasks contexts require to improve render speed (drastically!), need to visualize complex scenarios, use Visuals (sprites) for animation, or need to modernize WinForms custom controls for speedy, animated content rendering. These are fundamentals — package, namespaces, the D2DControl/D2DPanel/D2DForm base types, the ID2DGraphics drawing surface, and the RenderMode backends — which shows the minimal code to reliably render shapes and text, and provides a decision table that routes deeper questions to the DComp-exclusive top-level-window skill and the Visuals skill.
-
-metadata: Required nuget packages "WarpToolkit.WinForms.DirectX"; latest version "0.9.323-preview.gb01532b307"
+metadata:
+  source: "WARP src\\WarpToolkit.WinForms.DirectX"
+  versions: "../warp-api-decision-guide/references/versions.md"
 ---
 
 # WARP DirectX — Decision & Getting Started
+
+## Designer boundary
+
+- Render controls (`D2DControl`/`D2DPanel` subclasses that only draw) may be
+  single-file classes with `Render +=` in the ctor — the one exception to the
+  Designer-pair rule.
+- `D2DForm` and any Form/UserControl hosting render controls are Designer pairs:
+  `partial` + `.Designer.*`, parameterless ctor calling only `InitializeComponent()`,
+  window properties serialized there, no device/thread kickoff on the design path.
 
 `WarpToolkit.WinForms.DirectX` gives WinForms a **hardware-accelerated**
 (Direct2D / DirectWrite) drawing surface with a GDI+-style API. You draw with
 familiar verbs (`FillRectangle`, `DrawLine`, `DrawString`) but the surface is a
 flip-model DXGI swap chain composited through DirectComposition.
 
-Targets: `net10.0-windows10.0.22000.0` / `net11.0-windows10.0.22000.0`.
-
-Reference: `src/docs/reference/WarpToolkit.WinForms.DirectX.md`.
+Targets: the project's `net*-windows10.0.22000.0` TFM; package version per
+[versions.md](../warp-api-decision-guide/references/versions.md).
 
 ## Namespaces
 
@@ -80,18 +88,30 @@ internal sealed class MyCanvas : D2DPanel
 }
 ```
 
-Drop `MyCanvas` on a form like any panel. With the default render mode it paints
-on demand; call `Invalidate()` to request a repaint.
+Drop `MyCanvas` on a form like any panel (the host Form stays a Designer pair).
+`MyCanvas` itself is a render control — a single-file class is fine here. With
+the default render mode it paints on demand; call `Invalidate()` to request a repaint.
 
 ## Quick start B — full-window form
 
+`GameForm` is a Designer pair. The Designer file serializes the window and the
+`Render` hook; the logic file holds only the callback:
+
 ```csharp
+// GameForm.Designer.cs (Designer-generated; fragment of InitializeComponent)
+this.BackColor = System.Drawing.Color.Black;
+this.ClientSize = new System.Drawing.Size(1280, 720);
+this.Text = "Game";
+this.Render += new System.EventHandler<WarpToolkit.WinForms.DirectX.D2D.D2DRenderEventArgs>(this.OnFrameRender);
+```
+
+```csharp
+// GameForm.cs
 internal sealed partial class GameForm : D2DForm
 {
     public GameForm()
     {
         InitializeComponent();
-        Render += OnFrameRender;
     }
 
     private void OnFrameRender(object? sender, D2DRenderEventArgs e)
@@ -101,6 +121,9 @@ internal sealed partial class GameForm : D2DForm
     }
 }
 ```
+
+Set a background `RenderMode` in `OnHandleCreated` guarded by `DesignMode`,
+never in the constructor.
 
 For animated content drive frames with a background render mode (below) and/or a
 timer — see the *Using-Visuals* skill.
@@ -141,7 +164,7 @@ Frame-loop knobs (on every host):
 | Draw shapes/text in a panel, pick a render mode, basic invalidate-driven UI | **this skill** |
 | Build a **fullscreen / kiosk / game-loop** app whose whole window is Direct2D, with no GDI redirection surface | **`warp-directx-dcomp-exclusive-tlw`** |
 | Run a **render/animation loop** with retained **Visuals** for flicker-free, composited scenes | **`warp-directx-using-visuals`** |
-| Add normal modern WinForms controls around the surface | `warp-winforms-controls` |
+| Add normal modern WinForms controls around the surface | `warp-messaging`, `warp-fluent-tab-control`, `warp-input-controls` (router: `warp-winforms-controls`) |
 | Decide which WARP package a non-rendering task needs | `warp-api-decision-guide` |
 
 ## Anti-patterns
@@ -156,3 +179,9 @@ Frame-loop knobs (on every host):
   `D2DVisual.PaintContent` event (see *Using-Visuals*).
 - **Do not** expect `e.Graphics` in `GDIPlus` mode — that mode has no Direct2D
   surface.
+
+## Final checks
+
+1. Render controls may be single-file; every `D2DForm`/host Form is a Designer pair with a parameterless ctor.
+2. `Render`/`RenderBackground` hooks and window properties are serialized, not set in constructors of Forms.
+3. Render mode chosen per the table; device/thread work never runs on the design path.

@@ -12,6 +12,7 @@ description: >-
 
 ## Durable rules
 
+- Do not create a swap chain, D2D device, camera, or other GPU or COM graph from a parameterless constructor. The Designer loads that path. Create the graph after the handle exists and `LicenseManager.UsageMode` is not design time.
 - CsWin32 defines ABI/interop; an RCW and a C# lock do **not** make COM objects free-threaded or perform apartment marshalling.
 - Assign each object tree an owning apartment and keep creation, interface queries, methods, attachment/commit, teardown and releases there.
 - Follow the native interface's documented threading model. WinForms UI is normally STA; worker/thread-pool callbacks normally MTA.

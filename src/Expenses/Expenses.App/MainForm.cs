@@ -23,12 +23,10 @@ public partial class MainForm : Form, IServiceProvider
     public MainForm()
     {
         InitializeComponent();
-        BuildCommands();
-        foreach (string title in new[] { "All expenses", "Fuel", "Sub Camera" })
+        WireCommands();
+        _results.AddRange([_allResults, _fuelResults, _cameraResults]);
+        foreach (var view in _results)
         {
-            var view = new ExpenseResultsView();
-            _results.Add(view);
-            _tabs.AddTab(title, view);
             view.Grid.SelectionChanged += (_, _) => SelectionChanged();
             view.Grid.CellDoubleClick += (_, e) => { if (e.RowIndex >= 0) Execute(EditExpense); };
             view.Grid.ColumnWidthChanged += (_, e) =>
@@ -62,10 +60,7 @@ public partial class MainForm : Form, IServiceProvider
 
     public MainForm(IServiceProvider services) : this()
     {
-        _serviceProvider = services;
-        _store = services.GetRequiredService<BookkeepingStore>();
-        _preferencesStore = services.GetRequiredService<PreferencesStore>();
-        _preferences = services.GetRequiredService<AppPreferences>();
+        _serviceProvider = services ?? throw new ArgumentNullException(nameof(services));
     }
 
     object? IServiceProvider.GetService(Type serviceType) => _serviceProvider?.GetService(serviceType);
@@ -73,57 +68,55 @@ public partial class MainForm : Form, IServiceProvider
     private Expense? SelectedExpense => _results.Count == 0 ? null
         : _results[Math.Clamp(_tabs.CurrentTabIndex, 0, _results.Count - 1)].Grid.CurrentRow?.DataBoundItem as Expense;
 
-    private void BuildCommands()
+    private void WireCommands()
     {
-        var file = new ToolStripMenuItem("&File");
-        var edit = new ToolStripMenuItem("&Edit");
-        var view = new ToolStripMenuItem("&View");
-        var tools = new ToolStripMenuItem("&Tools");
-        _menu.Items.AddRange([file, edit, view, tools]);
-        AddCommand(file, "&New bookkeeping period...", Keys.None, () => SelectPeriod(true), () => !_editor.IsEditing);
-        AddCommand(file, "&Open bookkeeping period...", Keys.Control | Keys.O, () => SelectPeriod(false), () => !_editor.IsEditing);
-        file.DropDownItems.Add(new ToolStripSeparator());
-        AddCommand(file, "Export as &CSV...", Keys.None, () => Export(false), () => _period is not null && !_editor.IsEditing);
-        AddCommand(file, "Export as &PDF...", Keys.None, () => Export(true), () => _period is not null && !_editor.IsEditing);
-        file.DropDownItems.Add(new ToolStripSeparator());
-        AddCommand(file, "E&xit", Keys.Alt | Keys.F4, Close, () => true);
-        AddCommand(edit, "&New expense", Keys.Control | Keys.N, NewExpense,
-            () => _period is not null && _editor.Visible && !_editor.IsEditing, "New expense");
-        AddCommand(edit, "&Add note or reminder...", Keys.None, AddReminder, () => !_editor.IsEditing, "Add note");
-        AddCommand(edit, "&Edit expense", Keys.F2, EditExpense,
-            () => SelectedExpense is not null && !_editor.IsEditing, "Edit expense");
-        AddCommand(edit, "&Delete expense...", Keys.Delete, DeleteExpense,
-            () => SelectedExpense is not null && !_editor.IsEditing, "Delete expense");
-        edit.DropDownItems.Add(new ToolStripSeparator());
-        AddCommand(edit, "&Save expense", Keys.Control | Keys.S, CommitExpense, () => _editor.IsEditing, "Save");
-        AddCommand(edit, "&Cancel edit", Keys.None, CancelEdit, () => _editor.IsEditing, "Cancel");
-        edit.DropDownItems.OfType<ToolStripMenuItem>().Last().ShortcutKeyDisplayString = "Esc";
-        AddCommand(edit, "Stas&h draft...", Keys.Control | Keys.Shift | Keys.S, StashExpense, () => _editor.IsEditing, "Stash draft");
-        AddCommand(view, "&Period expense report...", Keys.None, () => ShowReport(false), () => _period is not null && !_editor.IsEditing);
-        AddCommand(view, "&Annual expense report...", Keys.None, () => ShowReport(true), () => !_editor.IsEditing);
-        AddCommand(view, "Active &notes and reminders...", Keys.None, ShowAllReminders, () => !_editor.IsEditing);
-        AddCommand(tools, "&Options...", Keys.None, ShowOptions, () => !_editor.IsEditing);
+        RegisterCommand(_newPeriod, () => SelectPeriod(true), () => !_editor.IsEditing);
+        RegisterCommand(_openPeriod, () => SelectPeriod(false), () => !_editor.IsEditing);
+        RegisterCommand(_exportCsv, () => Export(false), () => _period is not null && !_editor.IsEditing);
+        RegisterCommand(_exportPdf, () => Export(true), () => _period is not null && !_editor.IsEditing);
+        RegisterCommand(_exit, Close, () => true);
+        RegisterCommand(_newExpense, NewExpense, () => _period is not null && _editor.Visible && !_editor.IsEditing, _newButton);
+        RegisterCommand(_addReminder, AddReminder, () => !_editor.IsEditing, _noteButton);
+        RegisterCommand(_editExpense, EditExpense, () => SelectedExpense is not null && !_editor.IsEditing, _editButton);
+        RegisterCommand(_deleteExpense, DeleteExpense, () => SelectedExpense is not null && !_editor.IsEditing, _deleteButton);
+        RegisterCommand(_saveExpense, CommitExpense, () => _editor.IsEditing, _saveButton);
+        RegisterCommand(_cancelEdit, CancelEdit, () => _editor.IsEditing, _cancelButton);
+        RegisterCommand(_stashDraft, StashExpense, () => _editor.IsEditing, _stashButton);
+        RegisterCommand(_periodReport, () => ShowReport(false), () => _period is not null && !_editor.IsEditing);
+        RegisterCommand(_annualReport, () => ShowReport(true), () => !_editor.IsEditing);
+        RegisterCommand(_allReminders, ShowAllReminders, () => !_editor.IsEditing);
+        RegisterCommand(_options, ShowOptions, () => !_editor.IsEditing);
     }
 
-    private void AddCommand(ToolStripMenuItem parent, string text, Keys shortcut, Action action, Func<bool> enabled, string? toolbarText = null)
+    private void RegisterCommand(ToolStripItem item, Action action, Func<bool> enabled, ToolStripItem? button = null)
     {
-        var item = new ToolStripMenuItem(text) { ShortcutKeys = shortcut };
         item.Click += (_, _) => Execute(action);
-        parent.DropDownItems.Add(item);
         _commands.Add((item, enabled));
-        if (toolbarText is null) return;
-        var button = new ToolStripButton(toolbarText) { DisplayStyle = ToolStripItemDisplayStyle.Text, ToolTipText = text.Replace("&", "") };
+        if (button is null) return;
         button.Click += (_, _) => Execute(action);
-        _toolbar.Items.Add(button);
         _commands.Add((button, enabled));
     }
 
     protected override void OnLoad(EventArgs e)
     {
         base.OnLoad(e);
-        if (_store is null) return;
+        if (_serviceProvider is null || _loaded) return;
         Execute(() =>
         {
+            _store = _serviceProvider.GetRequiredService<BookkeepingStore>();
+            _preferencesStore = _serviceProvider.GetRequiredService<PreferencesStore>();
+            _preferences = _serviceProvider.GetRequiredService<AppPreferences>();
+            // Pinned WARP exposes only runtime AddTab and a read-only Tabs enumeration.
+            // Reparent the serialized preview instances, never duplicate tab views.
+            if (!_tabs.Tabs.Any())
+            {
+                _tabs.AddTab("All expenses", _allResults);
+                _tabs.AddTab("Fuel", _fuelResults);
+                _tabs.AddTab("Sub Camera", _cameraResults);
+                _resultsPreview.Visible = false;
+                _tabs.Dock = DockStyle.Fill;
+                _tabs.BringToFront();
+            }
             var saved = _preferences.Window;
             var bounds = new Rectangle(saved.X, saved.Y, Math.Max(MinimumSize.Width, saved.Width), Math.Max(MinimumSize.Height, saved.Height));
             if (saved.HasPosition && Screen.AllScreens.Any(s => s.WorkingArea.IntersectsWith(bounds)))
@@ -330,19 +323,7 @@ public partial class MainForm : Form, IServiceProvider
     {
         var reminders = Store.GetReminders(periodId);
         if (reminders.Count == 0) return;
-        using var dialog = new Form();
-        DialogLayout.Configure(dialog, title, new Size(650, 400));
-        var text = new TextBox
-        {
-            Multiline = true,
-            ReadOnly = true,
-            ScrollBars = ScrollBars.Vertical,
-            Dock = DockStyle.Fill,
-            Text = string.Join(Environment.NewLine + Environment.NewLine, reminders.Select(r => $"{r.CreatedAt.LocalDateTime:g}: {r.Text}")),
-            AccessibleName = "Active notes and reminders"
-        };
-        dialog.Controls.Add(text);
-        DialogLayout.Footer(dialog, () => dialog.DialogResult = DialogResult.OK, "Dismiss all shown", "Keep for next time");
+        using var dialog = new ReminderDialog(title, reminders);
         if (dialog.ShowDialog(this) == DialogResult.OK) Store.DismissReminders(reminders.Select(r => r.Id));
     }
 
@@ -357,54 +338,13 @@ public partial class MainForm : Form, IServiceProvider
         int year = _period?.Year ?? DateTime.Today.Year;
         if (annual)
         {
-            using var picker = new Form();
-            DialogLayout.Configure(picker, "Annual expense report", new Size(380, 160));
-            var years = new NumericUpDown { Minimum = 1900, Maximum = 9998, Value = year };
-            var fields = DialogLayout.Fields();
-            DialogLayout.Add(fields, "&Calendar year:", years);
-            picker.Controls.Add(fields);
-            DialogLayout.Footer(picker, () => picker.DialogResult = DialogResult.OK, "View report");
+            using var picker = new ReportYearDialog(year);
             if (picker.ShowDialog(this) != DialogResult.OK) return;
-            year = (int)years.Value;
+            year = picker.SelectedYear;
         }
         var totals = Store.Report(year, annual ? null : _period?.Id);
-        using var dialog = new Form();
-        DialogLayout.Configure(dialog, annual ? $"Annual expense report - {year}" : $"Period expense report - {_period}", new Size(850, 500));
-        var grid = new WarpToolkit.WinForms.Specialized.WarpDataGridView
-        {
-            Dock = DockStyle.Fill,
-            ReadOnly = true,
-            AllowUserToAddRows = false,
-            AllowUserToDeleteRows = false,
-            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-            AutoGenerateColumns = false,
-            AccessibleName = "Expense totals by category"
-        };
-        grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(CategoryTotal.Category), HeaderText = "Category" });
-        grid.Columns.Add(new DataGridViewTextBoxColumn
-        {
-            DataPropertyName = nameof(CategoryTotal.RecordedAmount),
-            HeaderText = "Recorded amount (USD)",
-            DefaultCellStyle = new DataGridViewCellStyle { Format = "N2" }
-        });
-        grid.Columns.Add(new DataGridViewTextBoxColumn
-        {
-            DataPropertyName = nameof(CategoryTotal.BusinessAmount),
-            HeaderText = "Business portion (USD)",
-            DefaultCellStyle = new DataGridViewCellStyle { Format = "N2" }
-        });
-        grid.DataSource = totals;
-        var caption = new Label
-        {
-            Dock = DockStyle.Bottom,
-            AutoSize = true,
-            Padding = new Padding(12),
-            Text = $"Recorded: {totals.Sum(t => t.RecordedAmount):N2} USD | Business portion: {totals.Sum(t => t.BusinessAmount):N2} USD\n" +
-                "Not a tax deduction calculation. Review vehicle costs, meals, and capital assets with your tax adviser.\n" +
-                (annual ? "Includes all state jurisdictions and period types; overlapping entries are not deduplicated." : "Includes all active expenses in this period, regardless of filter tab.")
-        };
-        dialog.Controls.Add(grid);
-        dialog.Controls.Add(caption);
+        using var dialog = new ExpenseReportDialog(
+            annual ? $"Annual expense report - {year}" : $"Period expense report - {_period}", totals, annual);
         dialog.ShowDialog(this);
     }
 

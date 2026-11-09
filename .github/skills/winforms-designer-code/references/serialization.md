@@ -1,20 +1,24 @@
 # Serialization examples
 
-## Partial skeleton
+Normative partial pair. Layout recipes are not defined here. Use [layout examples](../../winforms-high-dpi-fluent-layout/references/layout-examples.md#canonical-modal-footer) when adding a footer.
 
-Complete .NET 10 partial pair shown in one block. An application's Designer normally controls qualification/nullability style; keep this structure rather than introducing helpers for static assignments:
+## C# partial pair
 
 ```csharp
-using System;
-using System.Windows.Forms;
-
-/// <summary>A Designer-compatible shell with component ownership.</summary>
-public partial class DesignerShell : Form
+// CustomerDialog.cs
+public partial class CustomerDialog : Form
 {
-    /// <summary>Initializes the shell.</summary>
-    public DesignerShell()
+    private CustomerDraft? _draft;
+
+    public CustomerDialog()
     {
         InitializeComponent();
+    }
+
+    public CustomerDialog(CustomerDraft draft) : this()
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        _draft = draft;
     }
 
     private void InspectClick(object? sender, EventArgs e)
@@ -22,14 +26,13 @@ public partial class DesignerShell : Form
         Text = "Inspected";
     }
 }
+```
 
-#nullable disable
-public partial class DesignerShell
+```csharp
+// CustomerDialog.Designer.cs
+partial class CustomerDialog
 {
-    private System.ComponentModel.IContainer components;
-    private ToolStrip _toolbar;
-    private ToolStripButton _inspect;
-    private PictureBox _preview;
+    private System.ComponentModel.IContainer components = null;
 
     private void InitializeComponent()
     {
@@ -45,43 +48,39 @@ public partial class DesignerShell
         _toolbar.Items.Add(_inspect);
         _preview.Dock = DockStyle.Fill;
         _toolbar.Dock = DockStyle.Top;
-        Text = "Preview";
+        AutoScaleMode = AutoScaleMode.Font;
+        ClientSize = new Size(640, 480);
         Controls.Add(_preview);
         Controls.Add(_toolbar);
+        Name = "CustomerDialog";
+        Text = "Preview";
         _toolbar.ResumeLayout(false);
         ((System.ComponentModel.ISupportInitialize)_preview).EndInit();
         ResumeLayout(false);
         PerformLayout();
     }
 
-    /// <inheritdoc/>
     protected override void Dispose(bool disposing)
     {
-        if (disposing && components != null)
+        if (disposing && (components != null))
         {
             components.Dispose();
         }
-
         base.Dispose(disposing);
     }
+
+    private ToolStrip _toolbar;
+    private ToolStripButton _inspect;
+    private PictureBox _preview;
 }
-#nullable restore
 ```
 
-No label/editor/footer recipe is independently defined here; use the canonical layout examples when adding them.
-
-## Resources and initialization
-
-Designer-supported resource patterns include a local ComponentResourceManager for the Form type, `ApplyResources(control,"name")` and supported resource casts. Use actual `.resx` entries; don't call arbitrary static icon/image factories and assume changes survive a roundtrip.
-
-For custom controls implementing ISupportInitialize, generated BeginInit/EndInit surrounds interdependent property assignments. Expensive reconfiguration is deferred inside the control, not through a generated UI helper.
-
-Custom disposal needs one override: prefer container-owned components and explicit owner cleanup hooks, merge necessary additional cleanup deliberately, and confirm regeneration preserves it. Don't define competing Dispose overrides in two partial files.
+The `Point` values a generator emits for absolute leftovers are serialization residue. Do not copy them as the way to design a new form.
 
 ## VB differences
 
-Generated fields commonly use `Friend WithEvents`. A named handler in the main partial uses `Handles _inspect.Click`; alternatively preserve explicit `AddHandler ... AddressOf` where used. Event body logic and async exception handling do not belong in InitializeComponent.
+Generated fields are `Friend WithEvents`. The main partial is `Partial Class`. A named handler uses `Handles _inspect.Click`. Do not add or remove `Program.vb` as part of making a form designer-compatible. Classic Application Framework apps have none. WARP-hosted VB apps already have `Program.vb` and must keep it. Event bodies and async exception handling stay out of `InitializeComponent`.
 
-## Roundtrip checklist
+## Round-trip checklist
 
-Open in supported Visual Studio, change a property, save, close/reopen and inspect serialized source/resources. Compilation proves neither serialization nor correct property defaults. If unsupported source/factory expressions disappear, move runtime behavior to main code or implement an appropriate converter/serializer; do not hide it in generated helper methods.
+Open in a supported Visual Studio, change a property, save, close, reopen, and inspect the serialized source. If a factory call disappears, move that work to the main partial.

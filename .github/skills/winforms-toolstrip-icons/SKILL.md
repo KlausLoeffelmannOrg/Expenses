@@ -1,42 +1,57 @@
 ---
 name: winforms-toolstrip-icons
 description: >-
-  Builds icon-first WinForms command ToolStrips without WARP using a small
-  symbol-font image factory, readable mixed button/label/editor layouts, keyboard
-  accelerators and accessible icon names. Owns source-font verification,
-  DPI/theme/High Contrast regeneration, bitmap lifetime and Designer boundaries;
-  routes WARP symbol hosts to their specialist.
+  USE FOR: semantic icons on a WinForms command ToolStrip without WARP,
+  including a small symbol-font image factory, mixed items, and accessible
+  names. DO NOT USE FOR: a text-domain strip the user explicitly requested, or
+  a WARP app. Load warp-toolstrip-icons and warp-symbols instead. Factory
+  calls do not belong in InitializeComponent.
 ---
 
 # Icon-first ToolStrips
 
 ## Durable rules
 
-- **Command ToolStrips have icons by default.** Prefer image-only buttons with
-  useful tooltips and AccessibleName; keep meaningful Text for command identity.
-  ImageAndText is a deliberate discoverability choice, not an excuse to omit icons.
-- Text-only items need a reason: a ToolStripLabel captioning its adjacent ComboBox,
-  TextBox labels, status text and category/tab headers are legitimate exceptions.
-  Normal menu captions retain text and mnemonics.
-- With WARP, load `warp-toolstrip-icons` and `warp-symbols`; reuse the installed
-  symbol infrastructure instead of duplicating a local glyph renderer.
-- Without WARP, use an appropriate installed symbol font and a **small shared
-  Icon/Image factory** to deploy ordinary command icons consistently.
-- Keep factory/rendering calls in regular runtime code after Designer-created
-  items have owners. Static resources use supported `.resx` serialization;
-  factory calls inside InitializeComponent are not a Designer-roundtrip shortcut.
+- **A command ToolStrip must have semantic icons** unless the user explicitly
+  asked for a text-domain strip (tab headers, category labels, and similar).
+  Do not decide on your own that an ordinary command bar is text-only.
+  Prefer image-only buttons with tooltips and AccessibleName. Keep Text for
+  command identity. ImageAndText is a discoverability choice, not a reason to
+  skip the image.
+- A ToolStripLabel beside its editor, status text, and a user-requested text
+  header may omit an icon. Menu captions keep text and mnemonics and still
+  take an icon when the command is visual.
+- With WARP, load `warp-toolstrip-icons` and `warp-symbols`. Use
+  `SymbolToolStrip` / `SymbolMenuStrip` / `SymbolStatusStrip` and `FontSymbol`.
+  Do not build a second glyph renderer.
+- Without WARP, use one small shared image factory. Do not invent a private
+  codepoint and hope GDI substitutes a font.
+- Factory calls stay in runtime code after designed items have owners. A
+  `.resx` image is the serialization path. A factory call inside
+  `InitializeComponent` disappears on the first Designer save.
 
 ## Non-WARP image factory contract
 
-Use Segoe Fluent Icons for an appropriate Windows 11 target, or an installed
-Segoe MDL2 Assets source for older supported Windows. Verify the chosen font
-family and real glyph code points; do not treat GDI's silent font fallback as
-success or invent private-use glyphs.
+Pick the first installed face whose glyph actually exists. Prefer Segoe Fluent
+Icons. It is not guaranteed on Windows 10. Then Segoe UI Symbol. Then Segoe
+MDL2 Assets. Probe that face. The same private-use codepoint is not
+interchangeable: on a current Windows 11 box, U+E74E is missing in Segoe UI
+Symbol (`GetGlyphIndices` returns `0xFFFF`) and present in both Fluent and
+MDL2 with different glyph ids. U+E733 is Fluent-only against MDL2. U+2699 is
+Segoe UI Symbol and absent from the other two. A missing glyph needs a
+different meaningful glyph in the face that will draw it, not the other
+face's codepoint and not an invisible tofu box.
 
-The factory accepts a named/typed glyph, device-pixel image size and current host
-color; it returns an independently owned transparent bitmap. Render with an
-explicit pixel-unit Font and centered glyph metrics. Cache only when useful;
-do not add a general asset framework for a handful of toolbar commands.
+The factory accepts a named glyph, the current host color, and a pixel size from a stable 16px at 10pt at 96 DPI baseline. Do not measure the previous bitmap and scale that. Under Per-Monitor V2, after `WM_DPICHANGED`, `Control.Font` is already `ScaledControlFont` (`font.WithSize(Size * newDpi / oldDpi)`). `Font.SizeInPoints` is therefore already DPI-scaled. Do not multiply `Font.SizeInPoints / 10` by `DeviceDpi / 96`. That double-scales after a monitor move.
+
+Use one of these:
+
+- Keep the user's logical point size in your own field, set only when the user picks a font. Do not read it back from `Font.SizeInPoints`. An explicit `Font` assignment clears the DPI font cache. Pixel size is `16 * logicalPoints / 10 * DeviceDpi / 96`. That `DeviceDpi` term is coordinate scaling of a logical size, not a second scale of the observed font.
+- Or measure the live observed font with no extra DPI factor: `Font.Height`, or `TextRenderer` with `control.Font`. Do not call `Font.GetHeight(DeviceDpi)`.
+
+Window geometry uses monitor DPI on pixels only. It does not use this font formula. See [DIP schema](../winforms-high-dpi-fluent-layout/references/window-state.md#dip-schema).
+
+Return an independently owned transparent bitmap. Draw with an explicit pixel-unit `Font` and centered glyph metrics. Cache only when useful. Do not add an asset framework for a handful of commands.
 
 Images assigned to ToolStripItems need an explicit owner:
 
@@ -48,12 +63,7 @@ Images assigned to ToolStripItems need an explicit owner:
 - Clear/dispose owned images when the window/strip is disposed. Do not dispose
   shared resources from one item's cleanup.
 
-Render against the **current host** DPI, ForeColor and theme/High Contrast state.
-Regenerate raster images on DPI, theme or relevant host-color changes. A scalable
-font source is not a live scalable/recolored bitmap. Keep ImageScalingSize and
-actual image pixels consistent; avoid baking a 16px image once and stretching it
-on every monitor. GDI resource and measurement details belong to
-[rendering](../winforms-rendering/SKILL.md).
+Own the `Font` and each `Bitmap`. Dispose them when replaced and when the window is disposed. Regenerate on a real `FontChanged`, `DpiChanged`, system metric or user-preference change, and theme or High Contrast change. A posted `WM_DPICHANGED` is not that DPI change. A scalable font source is not a live bitmap. Keep `ImageScalingSize` equal to the pixels just generated. Menu, status, tree, and list images use the same rule. Do not stretch a cached bitmap on each event. GDI details belong to [rendering](../winforms-rendering/SKILL.md).
 
 ## Mixed-item strips
 

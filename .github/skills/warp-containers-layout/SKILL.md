@@ -13,12 +13,46 @@ metadata:
 ## Critical constraints
 
 - **Shared field/group/modal layout belongs to `winforms-high-dpi-fluent-layout`.**
-  Apply it by reference; adornment does not replace its TLP/label/editor/footer rules.
+  Apply its rules by reference — the layout SKILL's TLP/label/editor rules plus
+  [canonical modal footer](../winforms-high-dpi-fluent-layout/references/layout-examples.md#canonical-modal-footer)
+  and [resizable viewport](../winforms-high-dpi-fluent-layout/references/layout-examples.md#resizable-viewport)
+  — not its older one-file Form samples; adornment does not replace them.
+- Every Form/dialog/UserControl hosting these containers is a Designer pair with
+  a parameterless ctor (`warp-winforms-application-builder`).
 - Designer placement belongs to `winforms-designer-code`; runtime event/style
   customization belongs outside InitializeComponent.
 - AdornerPanel BorderStyle and Padding shadow Panel members; use the concrete type.
 - TransparentPanel.TransparencyStyle changes recreate its handle. PassThrough must
   remain enum value zero because CreateParams can run before field initializers.
+
+## Layout contract WARP containers must respect
+
+Summary of the WinForms rules of record (do not re-derive; follow the anchors):
+
+- **Command footer** — never a `FlowLayoutPanel` (FlowLayout stays for flowing
+  content). Nested TLP: outer 2 cols (100% + AutoSize) × 2 AutoSize rows, outer
+  and inner `AutoSize` + `GrowAndShrink`; empty spacer Label row0/col1
+  (AutoSize, Dock Fill, Margin top/bottom 5); inner TLP row1/col1 Dock Fill,
+  one AutoSize row, N equal-percent columns; buttons Dock Fill, AutoSize,
+  GrowAndShrink; captions >30 chars wrap deliberately. Vertical command stacks
+  transpose the same schema. Outer footer spans all root columns in the
+  root's AutoSize footer row.
+- **Root rows** — autosized dialog: all rows AutoSize. Resizable root: exactly
+  one Percent spring row before the footer. If a content viewport (grid, tab
+  host, AdornerTableLayoutPanel) already owns the Percent row, that row *is*
+  the spring — do not add a second Percent100 beside it (it halves the
+  viewport); contain extra content in a nested region or cap the spring with
+  a deliberate percentage.
+- **GroupBox chain** — GroupBox Dock Fill, AutoSize, GrowAndShrink with a sole
+  inner TLP configured the same; `AdornerPanel`/`AdornerTableLayoutPanel`
+  follow the same preferred-size chain.
+- **Scaling root** — the Form owns `AutoScaleMode.Font`; adorned regions inside
+  hosted UserControls are `AutoScaleMode.Inherit` with no own `Font`.
+- **Adaptive input minima** — no reflection; during font-settled layout
+  pattern-match `TextBox`/`NumericUpDown`/`ComboBox`/`MaskedTextBox` recursively
+  and set `MinimumSize` from expected character capacity + chrome measured on
+  the settled font, not from the current (growing) size
+  (`warp-input-controls`).
 
 ## AdornerPanel
 
@@ -95,6 +129,15 @@ Read `warp-fluent-tab-control` for tabs (their API/layout is not owned here),
 `winforms-rendering` for custom paint/theming and
 `winforms-custom-and-usercontrols` when authoring a new container.
 
-1. Automatic cell adjustment preserves the canonical layout contract.
+## Final checks
+
+1. Automatic cell adjustment preserves the canonical layout contract (footer,
+   single spring row, GroupBox chain, `Inherit` hosted views).
 2. Shadowed members and transparency style are accessed through correct types.
 3. Validation/overlay lifetime and runtime repaint/handle effects are explicit.
+
+## References
+
+- Detailed member tables and samples: [references/api.md](references/api.md)
+- Package versions: [versions.md](../warp-api-decision-guide/references/versions.md) (project pin wins; never guess "latest")
+- Compatibility alias: `warptoolkit-containers-layout` routes here; do not load both.

@@ -11,6 +11,10 @@ metadata:
 
 # GitHub clients and data-preserving Git composition
 
+> Designer pair rule: every Form, modal dialog and UserControl touched here is `partial` with a `.Designer.*`,
+> a parameterless ctor owning `InitializeComponent()`, and a runtime ctor `(IServiceProvider) : this()`;
+> services/IO/async start in `OnLoad`, never in `InitializeComponent` (`warp-winforms-application-builder`).
+
 ## Critical constraints
 
 - Fetch the remote and validate **every selected source against the current fetched
@@ -131,3 +135,9 @@ checks separately and record the actual result.
 1. Fresh fetched base and every source ancestry are recorded before mutation/replay.
 2. No active-checkout mutation, lossy blanket conflict policy or unleased overwrite.
 3. Tracking/resources survive; code warnings and real verification remain visible.
+
+## References
+
+- Detailed member tables and samples: [references/api.md](references/api.md)
+- Package versions: [versions.md](../warp-api-decision-guide/references/versions.md) (project pin wins; never guess "latest")
+- Compatibility alias: `warp-github-git` routes here; do not load both.

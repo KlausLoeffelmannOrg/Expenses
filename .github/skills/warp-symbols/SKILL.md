@@ -11,6 +11,10 @@ metadata:
 
 # Symbol catalogs and architecture boundary
 
+> Designer pair rule: every Form, modal dialog and UserControl touched here is `partial` with a `.Designer.*`,
+> a parameterless ctor owning `InitializeComponent()`, and a runtime ctor `(IServiceProvider) : this()`;
+> services/IO/async start in `OnLoad`, never in `InitializeComponent` (`warp-winforms-application-builder`).
+
 ## Critical constraints
 
 - FluentSymbols lives in WarpToolkit.WinForms.Symbols, shipped by
@@ -39,13 +43,22 @@ WarpToolkit.WinForms.Extensions.SourceFontNameAttribute.
 | TreeViewSymbols | ChevronDown=0xE70D, ChevronRight=0xE76C, Folder=0xE8B7, FolderOpen=0xE838 |
 
 Aliases intentionally share code points; do not delete them as duplicate assets.
-Segoe Fluent Icons ships with Windows 11; missing fonts can cause fallback/tofu.
-Do not invent code points or silently substitute a font.
+Segoe Fluent Icons ships with Windows 11 but is **not guaranteed on Windows 10**;
+Segoe MDL2 Assets and Segoe UI Symbol are different PUA tables, not drop-in
+substitutes for the same enum. Probe the family once (`InstalledFontCollection`)
+and map semantically per font (one `[SourceFontName]` enum type per family) or
+document a text fallback; `FontSymbol.HasGlyph` only checks `'\0'`, so a missing
+glyph renders tofu without an exception. Do not invent code points.
 
-Pick a member, check its font and read `warp-toolstrip-icons` for ConfigureItem,
-owner/detached rendering context, theme refresh and DPI. That renderer lives in
-WarpToolkit.WinForms.Extensions.UI. Custom enums require real code points and
-SourceFontNameAttribute; Generic.GetFont throws InvalidOperationException without it.
+Pick a member, check its font and read `warp-toolstrip-icons` for the symbol
+ToolStrip hosts (`SymbolToolStrip`/`SymbolMenuStrip`/`SymbolStatusStrip` with
+`SymbolToolStripButton.Symbol`), their automatic font/DPI/theme regeneration and
+the legacy `ConfigureItem` one-off renderer (WarpToolkit.WinForms.Extensions.UI).
+Custom enums require real code points and SourceFontNameAttribute;
+`FontSymbol.FromFluentSymbol`/`Generic.GetFont` throw InvalidOperationException
+without it. TreeView/ListView/Icon helpers (`SymbolTreeNode`, `ApplySymbols`,
+`ToIcon`, `SetApplicationIcon`, `SetTrayIcon`) render once at the pixel size you
+pass; re-run them after the font/DPI baseline settles.
 
 ## Current backend-neutral contract
 
@@ -69,8 +82,9 @@ image does not dispose the caller's old image. In-place bitmap mutation alone do
 not signal cache content changes.
 
 FontSymbol scaling is Parent (natural font, host scales bitmap), ChildOffset
-(host size + value), ChildScaled (host size * value, default1). Rotation normalizes
-modulo360; pixel offset fine-tunes placement. Host-aware SymbolRenderer.Measure/Draw
+(host size + value), ChildScaled (host size * value; **default**, value 1 → glyph
+tracks the host item font, SymbolFont contributes only its family). Rotation
+normalizes modulo360; pixel offset fine-tunes placement. Host-aware SymbolRenderer.Measure/Draw
 is more accurate than context-free preferred sizing. FromFluentSymbol allocates a
 Font; FontSymbol is not IDisposable, so the consumer owns that font. GetEffectiveFont
 returns a borrowed font in Parent mode and a newly allocated font in child modes.
@@ -103,6 +117,13 @@ Read `warp-toolstrip-icons` for those item hosts versus the older Enum helper.
 ## Final checks
 
 1. Nested member/font metadata exists in the installed package.
-2. Font fallback and bitmap refresh are explicit.
+2. Font availability per Windows version and bitmap refresh points are explicit;
+   no font swapped under an enum written for another PUA table.
 3. Renderer/cache registration, content invalidation and borrowed-resource lifetimes
    are explicit; current source is not confused with installed-package availability.
+
+## References
+
+- Detailed member tables and samples: [references/api.md](references/api.md)
+- Package versions: [versions.md](../warp-api-decision-guide/references/versions.md) (project pin wins; never guess "latest")
+- Compatibility alias: `warptoolkit-symbols` routes here; do not load both.

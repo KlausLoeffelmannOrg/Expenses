@@ -88,8 +88,10 @@ identity/capability, installed data and real operation results; no fake success.
 
 ## Test host and deterministic CI
 
-Smallest appropriate WinForms sample/test harness, with canonical shared layout
-owned by `winforms-high-dpi-fluent-layout` and Designer organization by
+Smallest appropriate WinForms sample/test harness (Designer-pair Form, parameterless
+ctor; map/service creation in `OnLoad`), with canonical shared layout
+owned by `winforms-high-dpi-fluent-layout` (rules, not its older one-file Form
+samples) and Designer organization by
 `winforms-designer-code`. It reports identity, offline data, OfflineMapDataOnly,
 geocoding/routes with networking disabled and exact missing-requirement statuses/
 exceptions.

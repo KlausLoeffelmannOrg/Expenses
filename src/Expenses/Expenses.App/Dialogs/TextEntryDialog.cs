@@ -1,29 +1,50 @@
 namespace Expenses.App.Dialogs;
 
-internal sealed class TextEntryDialog : Form
+public sealed partial class TextEntryDialog : Form
 {
-    private readonly TextBox _text;
     public string EnteredText => _text.Text.Trim();
     public bool PeriodOnly => _periodOnly.Checked;
-    private readonly CheckBox _periodOnly;
 
-    public TextEntryDialog(string title, string caption, bool reminder = false, bool hasPeriod = false)
+    public TextEntryDialog()
     {
-        DialogLayout.Configure(this, title, new Size(550, reminder ? 300 : 180));
-        var fields = DialogLayout.Fields();
-        _text = new TextBox { Multiline = reminder, Height = reminder ? 110 : 25, MaxLength = reminder ? 10000 : 150 };
-        _periodOnly = new CheckBox { Text = "Only for the current bookkeeping period", AutoSize = true, Enabled = hasPeriod };
-        DialogLayout.Add(fields, caption, _text);
-        if (reminder) DialogLayout.Add(fields, "&Scope:", _periodOnly);
-        Controls.Add(fields);
-        DialogLayout.Footer(this, () =>
+        InitializeComponent();
+    }
+
+    public TextEntryDialog(string title, string caption, bool reminder = false, bool hasPeriod = false) : this()
+    {
+        Text = title;
+        _caption.Text = caption;
+        _text.AccessibleName = caption.Replace("&", "").TrimEnd(':');
+        _text.Multiline = reminder;
+        _text.AcceptsReturn = reminder;
+        _text.ScrollBars = reminder ? ScrollBars.Vertical : ScrollBars.None;
+        _text.MaxLength = reminder ? 10000 : 150;
+        _scopeCaption.Visible = reminder;
+        _periodOnly.Visible = reminder;
+        _periodOnly.Enabled = hasPeriod;
+        if (!reminder)
         {
-            if (EnteredText.Length == 0)
-            {
-                MessageBox.Show(this, "Enter a value before continuing.", Text);
-                return;
-            }
-            DialogResult = DialogResult.OK;
-        });
+            _text.Dock = DockStyle.Top;
+            _text.MinimumSize = Size.Empty;
+            _layout.RowStyles[1].SizeType = SizeType.AutoSize;
+            ClientSize = new Size(550, 180);
+            MinimumSize = new Size(380, 180);
+        }
+    }
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        DialogLayout.CapToWorkingArea(this);
+    }
+
+    private void AcceptClick(object? sender, EventArgs e)
+    {
+        if (EnteredText.Length == 0)
+        {
+            MessageBox.Show(this, "Enter a value before continuing.", Text);
+            return;
+        }
+        DialogResult = DialogResult.OK;
     }
 }

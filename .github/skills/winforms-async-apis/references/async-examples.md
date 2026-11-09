@@ -2,156 +2,143 @@
 
 ## Contents
 
-- [Explicit overloads](#explicit-overloads)
-- [Show results](#show-results)
-- [Synchronous kickoff](#synchronous-kickoff)
-- [Deferred reactions and coordination](#deferred-reactions-and-coordination)
+- [Handler and task method](#handler-and-task-method)
+- [Design-safe kickoff](#design-safe-kickoff)
+- [Deferred key handling](#deferred-key-handling)
 
-## Explicit overloads
+## Dialog validation task
 
-Complete .NET 10 helper; UI handle/message loop must exist. The callback uses the supplied token and preserves UI context:
+OK must not close the dialog before the task succeeds. Leave the OK button's `DialogResult` at `None` so Enter cannot accept early. `AcceptButton` may still point at that button. `Cancel` keeps `DialogResult.Cancel`.
 
 ```csharp
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-
-/// <summary>Demonstrates correctly typed UI dispatch callbacks.</summary>
-public static class AsyncUiExamples
+private async void OkButton_Click(object? sender, EventArgs e)
 {
-    /// <summary>Runs all four overload shapes.</summary>
-    public static async Task<int> UpdateAsync(Control control, CancellationToken token)
+    try
     {
-        ArgumentNullException.ThrowIfNull(control);
-        Action setText = () => { control.Text = "Loading"; };
-        await control.InvokeAsync(setText, token);
-        int length = await control.InvokeAsync(() => control.Text.Length, token);
-        Func<CancellationToken, ValueTask> finish = async ct =>
+        if (!await ValidateDraftAsync(_draft, CancellationToken.None))
         {
-            await Task.Delay(1, ct);
-            control.Text = "Loaded";
-        };
-        await control.InvokeAsync(finish, token);
-        Func<CancellationToken, ValueTask<int>> read = async ct =>
-        {
-            await Task.Delay(1, ct);
+            return;
+        }
 
-            return control.Text.Length;
-        };
-
-        return length + await control.InvokeAsync(read, token);
+        DialogResult = DialogResult.OK;
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show(this, ex.Message, "Check failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
 }
 ```
 
-Avoid `InvokeAsync(() => SomeTaskAsync())`: it can select `Func<Task>` and return `Task<Task>`. Wrap Task work in the typed token-taking async delegate instead. `Task.Run` expects an Action/Func delegate, not an already-created Task; `Task.Run(() => control.InvokeAsync(...))` is mechanically possible but normally redundant because InvokeAsync already posts. CPU work belongs in Task.Run; I/O normally does not.
+Field-level `ErrorProvider` rules stay in [binding rules](../../winforms-databinding/references/binding-rules.md). Do not set `DialogResult.OK` on the button for this path.
 
-## Show results
+## Handler and task method
 
 ```csharp
-using System.Threading.Tasks;
-using System.Windows.Forms;
-
-/// <summary>Shows modeless/modal forms and a task dialog with their actual result types.</summary>
-public static class AsyncWindows
+private async void LoadButton_Click(object? sender, EventArgs e)
 {
-    /// <summary>Awaits completion before disposing each Form.</summary>
-    public static async Task ShowExamplesAsync()
+    try
     {
-        using Form document = new();
-        await document.ShowAsync();
-        using Form editor = new();
-        DialogResult result = await editor.ShowDialogAsync();
-        TaskDialogPage page = new()
-        {
-            Heading = "Finished",
-            Text = result == DialogResult.OK ? "Accepted" : "Closed"
-        };
-        TaskDialogButton clicked = await TaskDialog.ShowDialogAsync(page);
+        await LoadAsync();
+    }
+    catch (OperationCanceledException)
+    {
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show(this, ex.Message, "Load failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+    }
+}
+
+private async Task LoadAsync()
+{
+    await Task.Delay(1);
+    if (!IsDisposed)
+    {
+        Text = "Ready";
     }
 }
 ```
 
-Prefer supported owner overloads when an owner exists; check exact target signatures. The show methods use usable WinForms context; the caller still owns construction and disposal.
+## Design-safe kickoff
 
-## Synchronous kickoff
-
-This complete Form starts from `Shown` without making the override async-void. The observer retains work, handles cancellation/faults, and invalidates the session only after an accepted close:
+`LoadingForm` is a designed form. The designer partial owns `InitializeComponent` and `Dispose`. The main partial does not start work in the parameterless constructor and does not hide the window.
 
 ```csharp
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-
-/// <summary>Starts observed asynchronous work after the shown event.</summary>
-public class LoadingWindow : Form
+public partial class LoadingForm : Form
 {
     private readonly CancellationTokenSource _lifetime = new();
     private Task? _work;
-    private bool _lifetimeDisposed;
 
-    /// <inheritdoc/>
-    protected override void OnShown(EventArgs e)
+    public LoadingForm()
     {
-        base.OnShown(e);
-        _work ??= ObserveAsync(_lifetime.Token);
+        InitializeComponent();
+        Shown += ShownHandler;
     }
 
-    private async Task ObserveAsync(CancellationToken token)
+    private async void ShownHandler(object? sender, EventArgs e)
     {
+        if (LicenseManager.UsageMode == LicenseUsageMode.Designtime)
+        {
+            return;
+        }
+
         try
         {
-            await Task.Delay(1, token);
-            if (!IsDisposed && !token.IsCancellationRequested)
-            {
-                Text = "Ready";
-            }
+            _work ??= RunAsync(_lifetime.Token);
+            await _work;
         }
-        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
         {
         }
         catch (Exception ex)
         {
             if (!IsDisposed)
             {
-                MessageBox.Show(this, ex.Message, "Load failed");
+                MessageBox.Show(this, ex.Message, "Load failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
 
-    /// <inheritdoc/>
-    protected override void OnFormClosing(FormClosingEventArgs e)
+    private async Task RunAsync(CancellationToken token)
     {
-        base.OnFormClosing(e);
+        await Task.Delay(1, token);
+        if (!IsDisposed && !token.IsCancellationRequested)
+        {
+            Text = "Ready";
+        }
+    }
+
+    private void LoadingForm_FormClosing(object? sender, FormClosingEventArgs e)
+    {
         if (!e.Cancel)
         {
             _lifetime.Cancel();
         }
     }
+}
+```
 
-    /// <inheritdoc/>
-    protected override void Dispose(bool disposing)
+Wire `FormClosing` in the designer partial with a named handler, or hook it next to `Shown` in the parameterless constructor. Cancel the lifetime from that handler. Dispose the `CancellationTokenSource` from the single designer `Dispose` only after the observed task has finished, or from `Disposed` once close has been observed. Do not add a second `Dispose` override in this file.
+
+## Deferred key handling
+
+```csharp
+private async void TextBox_KeyDown(object? sender, KeyEventArgs e)
+{
+    if (e.KeyCode != Keys.Down)
     {
-        if (disposing && !_lifetimeDisposed)
-        {
-            _lifetime.Cancel();
-            _lifetime.Dispose();
-            _lifetimeDisposed = true;
-        }
+        return;
+    }
 
-        base.Dispose(disposing);
+    try
+    {
+        await InvokeAsync(() => _textBox.SelectAll());
+    }
+    catch (Exception ex) when (!IsDisposed)
+    {
+        MessageBox.Show(this, ex.Message, "Edit failed");
     }
 }
 ```
 
-For a designed Form, merge cleanup into its one ownership path. For a longer operation, retain the token before disposing CTS and observe completion; do not dispose resources while work still uses them. Async event handlers use the same try/cancellation/fault policy rather than escaping errors.
-
-## Deferred reactions and coordination
-
-In a KeyDown event, posting `SelectAll` can defer a reaction past the current handler/message; test actual key behavior and handle errors/lifetime. It is not a guarantee about pending paint/activation order. A synchronous `OnLoad` can post a retained, observed kickoff, but `Shown` is clearer when visibility matters.
-
-Two cooperative UI-bound activities are concurrent, not necessarily parallel. Start both; `WhenAny` returns the completed **Task**, so await that task to observe its result/fault before restarting only that activity. When stopping, cancel the session and observe **both** outstanding tasks (e.g. WhenAll in cleanup) so faults don't disappear. Rejected close must not permanently kill the session.
-
-Do not use `ConfigureAwait(false)` if the next continuation touches a control. Library I/O can avoid context only when its entire continuation is UI-independent, then marshal a small UI update explicitly.
+That post is specifically so the current key message can finish. Do not wrap an ordinary click in `BeginInvoke` or a discarded `InvokeAsync`.

@@ -1,13 +1,10 @@
 ---
 name: winforms-net11-apis
 description: >-
-  Use when creating, modernizing, or reviewing a WinForms app that targets
-  .NET 11. Prefer the new opt-in renderer, adaptive Windows visual and
-  accessibility settings, deferred form reveal, batched painting/layout,
-  toggle switches, kiosk support, and improved DataGridView and print-preview
-  colors when they fit. Also use when explaining current unshipped .NET 11
-  WinForms APIs or preparing work for a later layout, performance, and
-  accessibility brush-up.
+  USE FOR: a WinForms app that targets .NET 11, including the opt-in renderer,
+  live accessibility settings, SuspendPainting, toggle switches, and
+  KioskModeManager. DO NOT USE FOR: layout or Designer shape, or for apps that
+  are not on that target. These APIs are unshipped and may change.
 ---
 
 # WinForms .NET 11 Features
@@ -93,7 +90,7 @@ For renderer-aware custom controls:
 - High Contrast resolves to classic-compatible painting; never bypass that
   behavior with fixed custom colors.
 
-Use adaptive containers (`TableLayoutPanel` or `FlowLayoutPanel`), `AutoSize`,
+Use adaptive containers (`TableLayoutPanel`, or `FlowLayoutPanel` for wrapping content other than command buttons), `AutoSize`,
 and preferred sizes around modernized controls. Do not force legacy pixel
 heights that clip text or focus indicators under DPI or text scaling.
 
@@ -179,8 +176,9 @@ kioskModeManager.EscapeExitsFullScreen = true;
 kioskModeManager.TopMostInFullScreen = true;
 kioskModeManager.MousePointerAutoHideDelay = 3000;
 kioskModeManager.AlwaysOn = true;
-kioskModeManager.FullScreen = true;
 ```
+
+Serialize the component on the designer partial. Do not set `FullScreen`, `FormBorderStyle.None`, or `WindowState` from the parameterless constructor. That hides the design surface. Enter fullscreen from a runtime handler after the design-time guard in [async examples](../winforms-async-apis/references/async-examples.md). Prefer this component over hand-written chrome changes. Layout still belongs to [winforms-high-dpi-fluent-layout](../winforms-high-dpi-fluent-layout/SKILL.md).
 
 `AlwaysOn` suppresses ordinary display/system sleep and can fail with a
 `Win32Exception`; surface that failure. The toggle key is app-local, not a

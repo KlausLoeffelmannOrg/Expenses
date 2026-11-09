@@ -1,62 +1,65 @@
-using Expenses.App.Dialogs;
 using Expenses.Core;
 
 namespace Expenses.App.Views;
 
-internal sealed class StorageOptionsView : UserControl
+public sealed partial class StorageOptionsView : UserControl
 {
-    private readonly AppPreferences _draft;
-    private readonly TextBox _settings = new();
-    private readonly TextBox _database = new();
-    private readonly TextBox _backup = new();
+    private AppPreferences? _draft;
 
-    public StorageOptionsView(AppPreferences draft)
+    public StorageOptionsView()
     {
-        _draft = draft;
-        AutoScroll = true;
-        AutoScrollMinSize = new Size(500, 280);
-        var fields = DialogLayout.Fields();
-        AddFolder(fields, "App &settings folder:", _settings, draft.SettingsFolder);
-        AddFolder(fields, "&Database folder:", _database, draft.DatabaseFolder);
-        AddFolder(fields, "Additional &backup folder:", _backup, draft.BackupFolder);
-        DialogLayout.Add(fields, "", new Label
-        {
-            Text = "A local database and receipt backup is always made at session end.\n" +
-                "The additional folder is optional; choose OneDrive for a synced copy.\n" +
-                "Changing the database folder copies the current database and receipts.\n" +
-                "Choose a new folder; an existing database will never be overwritten.",
-            AutoSize = true
-        });
-        Controls.Add(fields);
-        Size = new Size(680, 300);
+        InitializeComponent();
     }
 
-    private void AddFolder(TableLayoutPanel fields, string caption, TextBox input, string value)
+    public StorageOptionsView(AppPreferences draft) : this() => LoadPreferences(draft);
+
+    public void LoadPreferences(AppPreferences draft)
     {
-        input.Text = value;
-        input.Anchor = AnchorStyles.Left | AnchorStyles.Right;
-        input.AccessibleName = caption.Replace("&", "");
-        var picker = new TableLayoutPanel
+        ArgumentNullException.ThrowIfNull(draft);
+        _draft = draft;
+        _settings.Text = draft.SettingsFolder;
+        _database.Text = draft.DatabaseFolder;
+        _backup.Text = draft.BackupFolder;
+    }
+
+    protected override void OnLayout(LayoutEventArgs e)
+    {
+        base.OnLayout(e);
+        if (_fields is null) return;
+
+        // Percent columns can allocate less than the value editor's minimum and overlap the picker.
+        int captionWidth = Math.Max(_settingsLabel.GetPreferredSize(Size.Empty).Width + _settingsLabel.Margin.Horizontal,
+            Math.Max(_databaseLabel.GetPreferredSize(Size.Empty).Width + _databaseLabel.Margin.Horizontal,
+                _backupLabel.GetPreferredSize(Size.Empty).Width + _backupLabel.Margin.Horizontal));
+        int settingsWidth = _settings.MinimumSize.Width + _settings.Margin.Horizontal
+            + _browseSettings.GetPreferredSize(Size.Empty).Width + _browseSettings.Margin.Horizontal;
+        int databaseWidth = _database.MinimumSize.Width + _database.Margin.Horizontal
+            + _browseDatabase.GetPreferredSize(Size.Empty).Width + _browseDatabase.Margin.Horizontal;
+        int backupWidth = _backup.MinimumSize.Width + _backup.Margin.Horizontal
+            + _browseBackup.GetPreferredSize(Size.Empty).Width + _browseBackup.Margin.Horizontal;
+        _fields.MinimumSize = new Size(captionWidth + Math.Max(settingsWidth + _settingsPicker.Margin.Horizontal,
+            Math.Max(databaseWidth + _databasePicker.Margin.Horizontal, backupWidth + _backupPicker.Margin.Horizontal)), 0);
+    }
+
+    private void BrowseSettings(object? sender, EventArgs e) => BrowseFolder(_settings);
+    private void BrowseDatabase(object? sender, EventArgs e) => BrowseFolder(_database);
+    private void BrowseBackup(object? sender, EventArgs e) => BrowseFolder(_backup);
+
+    private void BrowseFolder(TextBox input)
+    {
+        if (_draft is null) return;
+        using var dialog = new FolderBrowserDialog
         {
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            ColumnStyles = { new ColumnStyle(SizeType.Percent, 100), new ColumnStyle(SizeType.AutoSize) }
+            InitialDirectory = input.Text,
+            Description = input.AccessibleName ?? "Choose folder",
+            UseDescriptionForTitle = true
         };
-        var browse = new Button { Text = "...", AutoSize = true, Dock = DockStyle.Fill, AccessibleName = "Choose " + input.AccessibleName };
-        browse.Click += (_, _) =>
-        {
-            using var dialog = new FolderBrowserDialog { InitialDirectory = input.Text, Description = input.AccessibleName, UseDescriptionForTitle = true };
-            if (dialog.ShowDialog(this) == DialogResult.OK) input.Text = dialog.SelectedPath;
-        };
-        picker.Controls.Add(input, 0, 0);
-        picker.Controls.Add(browse, 1, 0);
-        DialogLayout.Add(fields, caption, picker);
+        if (dialog.ShowDialog(this) == DialogResult.OK) input.Text = dialog.SelectedPath;
     }
 
     public void Apply()
     {
+        var draft = _draft ?? throw new InvalidOperationException("Load a runtime preferences draft before applying storage options.");
         static string Folder(string text, bool optional)
         {
             text = text.Trim();
@@ -64,8 +67,11 @@ internal sealed class StorageOptionsView : UserControl
             if (!Path.IsPathFullyQualified(text)) throw new ArgumentException("Choose an absolute folder path.");
             return Path.GetFullPath(text);
         }
-        _draft.SettingsFolder = Folder(_settings.Text, false);
-        _draft.DatabaseFolder = Folder(_database.Text, false);
-        _draft.BackupFolder = Folder(_backup.Text, true);
+        string settings = Folder(_settings.Text, false);
+        string database = Folder(_database.Text, false);
+        string backup = Folder(_backup.Text, true);
+        draft.SettingsFolder = settings;
+        draft.DatabaseFolder = database;
+        draft.BackupFolder = backup;
     }
 }

@@ -1,4 +1,5 @@
 using Expenses.Core;
+using System.ComponentModel;
 using System.Globalization;
 
 namespace Expenses.App.Views;
@@ -10,20 +11,26 @@ public sealed partial class ExpenseEditor : UserControl
     public event EventHandler? CommitRequested;
     public event EventHandler? CancelRequested;
     public event EventHandler? StashRequested;
+    [Browsable(false)]
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public bool IsEditing { get; private set; }
 
     public ExpenseEditor()
     {
         InitializeComponent();
-        _commit.Click += (_, _) => CommitRequested?.Invoke(this, EventArgs.Empty);
-        _cancel.Click += (_, _) => CancelRequested?.Invoke(this, EventArgs.Empty);
-        _stash.Click += (_, _) => StashRequested?.Invoke(this, EventArgs.Empty);
-        _browse.Click += (_, _) =>
-        {
-            using var dialog = new OpenFileDialog { Title = "Attach supporting receipt", Filter = "Receipt files|*.pdf;*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.txt|All files|*.*" };
-            if (dialog.ShowDialog(this) == DialogResult.OK) _receipt.Text = dialog.FileName;
-        };
-        Clear();
+        // The OOP Designer constructs before Site exists; DesignMode alone is insufficient.
+        if (LicenseManager.UsageMode != LicenseUsageMode.Designtime) Clear();
+    }
+
+    private void CommitClick(object? sender, EventArgs e) => CommitRequested?.Invoke(this, EventArgs.Empty);
+    private void CancelClick(object? sender, EventArgs e) => CancelRequested?.Invoke(this, EventArgs.Empty);
+    private void StashClick(object? sender, EventArgs e) => StashRequested?.Invoke(this, EventArgs.Empty);
+
+    private void BrowseClick(object? sender, EventArgs e)
+    {
+        if (LicenseManager.UsageMode == LicenseUsageMode.Designtime || DesignMode) return;
+        using var dialog = new OpenFileDialog { Title = "Attach supporting receipt", Filter = "Receipt files|*.pdf;*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.txt|All files|*.*" };
+        if (dialog.ShowDialog(this) == DialogResult.OK) _receipt.Text = dialog.FileName;
     }
 
     public void ShowExpense(Expense expense) => LoadInput(new(
@@ -63,7 +70,8 @@ public sealed partial class ExpenseEditor : UserControl
         _businessUse.Enabled = editing;
         _browse.Enabled = editing;
         _actions.Visible = editing;
-        if (editing) { _heading.Text = "Editing expense - Save, Cancel, or Stash before navigating"; _payee.Focus(); }
+        _heading.Text = editing ? "Editing expense - Save, Cancel, or Stash before navigating" : "Expense details (read-only)";
+        if (editing) _payee.Focus();
     }
 
     public void Clear()

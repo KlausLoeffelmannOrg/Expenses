@@ -11,6 +11,10 @@ metadata:
 
 # Data grids
 
+> Designer pair rule: every Form, modal dialog and UserControl touched here is `partial` with a `.Designer.*`,
+> a parameterless ctor owning `InitializeComponent()`, and a runtime ctor `(IServiceProvider) : this()`;
+> services/IO/async start in `OnLoad`, never in `InitializeComponent` (`warp-winforms-application-builder`).
+
 ## Critical constraints
 
 - GridView is virtual-mode, **single template-painted column**, not a drop-in
@@ -106,3 +110,9 @@ follows `winforms-rendering`.
 1. Grid model fits classic columns versus template virtualization.
 2. Binding/selection uses the correct concrete properties.
 3. Header/row/custom-template theme and resource behavior are tested explicitly.
+
+## References
+
+- Detailed member tables and samples: [references/api.md](references/api.md)
+- Package versions: [versions.md](../warp-api-decision-guide/references/versions.md) (project pin wins; never guess "latest")
+- Compatibility alias: `warptoolkit-data-grids` routes here; do not load both.

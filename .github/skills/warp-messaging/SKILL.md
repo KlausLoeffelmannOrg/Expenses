@@ -17,7 +17,10 @@ metadata:
 - ViewModels use IDialogService through `warp-app-services`, not this static UI API.
 - Customized dialogs use FluentMessageBoxForm and ordinary Form ownership.
 - App-font/theme defaults are built in. Shared modal layout/async presentation
-  belong to `winforms-high-dpi-fluent-layout` and `winforms-async-apis`.
+  belong to `winforms-high-dpi-fluent-layout` (rules and
+  [canonical modal footer](../winforms-high-dpi-fluent-layout/references/layout-examples.md#canonical-modal-footer),
+  not its older one-file Form samples) and `winforms-async-apis`.
+- A custom `FluentMessageBoxForm` subclass is a Designer pair with a parameterless ctor.
 
 ## Workflow and overloads
 
@@ -46,3 +49,9 @@ supported frameworks; WARP's typed helper has a different result contract.
 1. UI versus ViewModel ownership is correct.
 2. Argument order and owner handling match the actual overload.
 3. Dialog is disposed and inherits configured app theme/DPI context.
+
+## References
+
+- Detailed member tables and samples: [references/api.md](references/api.md)
+- Package versions: [versions.md](../warp-api-decision-guide/references/versions.md) (project pin wins; never guess "latest")
+- Compatibility alias: `warptoolkit-messaging` routes here; do not load both.

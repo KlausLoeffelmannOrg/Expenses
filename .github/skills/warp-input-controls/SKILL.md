@@ -19,14 +19,62 @@ metadata:
   defaults true.
 - BindableComboBox autoassigns IList DataContext to DataSource only outside design
   mode; value binding is SelectedBindingValue.
-- Layout/Designer/binding belong to `winforms-high-dpi-fluent-layout`,
+- Layout/Designer/binding belong to `winforms-high-dpi-fluent-layout` (rules, not
+  its older one-file Form samples),
   `winforms-designer-code`, `winforms-databinding`; retain their single-line editor
   and caption contracts by reference.
+- The host Form/UserControl is a Designer pair with a parameterless ctor; pickers
+  and extenders are placed in `InitializeComponent`, bound in `OnLoad`.
 - Inspect installed versions: experimental selection and typed/AI formatter contracts
   may differ from source; decimal money is not a binary floating-point slider.
 - In Tools/Options, `winforms-options-dialog` owns the visible caption/value/picker
   layout, editor selection, row spacing and draft cancellation. A WARP control
   does not waive those ergonomic/accessibility rules.
+- Hosted input views are `AutoScaleMode.Inherit` without own `Font`; the Form is
+  the sole scaling root. Command buttons under the inputs use the nested-TLP
+  [canonical modal footer](../winforms-high-dpi-fluent-layout/references/layout-examples.md#canonical-modal-footer),
+  never a `FlowLayoutPanel`.
+
+## Adaptive input minima (no reflection)
+
+Pattern-match, don't reflect; one helper, not a per-skill copy. After the
+font/AutoScale baseline settled (`OnLoad` after the host applied its font, and
+again after a Form font transaction) call the canonical
+`EditorWidths.Apply` from
+[runtime-minima](../winforms-high-dpi-fluent-layout/references/layout-examples.md#runtime-minima):
+it walks `Controls` recursively, matches `TextBox`/`MaskedTextBox`/
+`NumericUpDown`/`ComboBox` by type and sets `MinimumSize` from the **expected
+capacity** (sample value or N digits measured with `TextRenderer.MeasureText`
+on the control's **own live `Font`**) plus chrome measured from the control
+itself (`Width - ClientSize.Width`, drop-down/spin button widths from
+`SystemInformation`), with **no extra DPI factor** — after WM_DPICHANGED the
+`Font` is already DPI-scaled. A fixed `+8` border allowance is not universal
+chrome: border and button widths change with DPI, theme and font. Never derive
+the minimum from the control's *current* size (it ratchets up while scaling)
+and never add to the previous `MinimumSize`.
+
+WARP pickers join the same pass: `FilePathPicker` (text + `ButtonWidth`
+buttons) and `EditFloatingPointSlider` host the current ambient font; extend
+the helper's type switch for them in app code — no reflection, no separate
+font argument.
+
+## Date, time and currency entry policy
+
+Default to **masked typed entry**: a `MaskedTextBox` (or an app-owned derived
+masked editor per field kind — date, time, currency) with culture-aware mask,
+typed parse/validation and inline error reporting
+(`winforms-options-dialog` owns the Options-page variant). Do not default to
+`DateTimePicker`/`MonthCalendar`: in this skill set they are avoided because
+the requested accessibility and dark-mode policy wants keyboard-first typed
+entry and theme-consistent rendering — a policy, not a universal Windows
+fact; use them only when the user explicitly asks for a calendar UI and
+accepts their theming limits.
+
+The WARP `DateFormatterComponent`/`TimeFormatterComponent`/
+`DecimalFormatterComponent` extenders (below) are the **explicit alternative**
+when the domain needs free-form or AI-assisted parsing of unmasked text; their
+`GetValue/SetValue` expect a plain `TextBox` — do not claim they attach to a
+`MaskedTextBox`, and do not mix mask + formatter on one editor.
 
 ## Picker inventory
 
@@ -119,4 +167,12 @@ checking the installed component's public settings/Designer serialization.
 
 1. Selection and typed values bind to their actual properties/types.
 2. Range/format/culture and invalid-input reporting fit the domain.
-3. Input layout follows the shared owner, with no fabricated AutoView/AI setup.
+3. Input layout follows the shared owner, with no fabricated AutoView/AI setup;
+   minima via the canonical helper on the settled font, no reflection; masked
+   typed entry for date/time/currency, native pickers only on explicit request.
+
+## References
+
+- Detailed member tables and samples: [references/api.md](references/api.md)
+- Package versions: [versions.md](../warp-api-decision-guide/references/versions.md) (project pin wins; never guess "latest")
+- Compatibility alias: `warptoolkit-input-controls` routes here; do not load both.

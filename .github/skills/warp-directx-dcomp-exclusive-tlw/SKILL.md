@@ -1,9 +1,9 @@
 ---
 name: warp-directx-dcomp-exclusive-tlw
-
 description: Use this skill when building a WinForms app whose top-level window is rendered purely by WARP-DirectX (a D2DForm) using DirectComposition-exclusive rendering — fullscreen, kiosk, or game-style windows that have NO GDI parent redirection surface. It explains the prerequisites, the benefits, the UseDirectCompositionExclusiveRendering switch (WS_EX_NOREDIRECTIONBITMAP), the critical "every child must also be Direct2D/DComp content" constraint, and shows a minimal working DComp-exclusive form.
-
-metadata: Required NuGet packages "WarpToolkit.WinForms.DirectX"; latest version "0.9.323-preview.gb01532b307"
+metadata:
+  source: "WARP src\\WarpToolkit.WinForms.DirectX\\Controls\\D2DForm"
+  versions: "../warp-api-decision-guide/references/versions.md"
 ---
 
 # WARP DirectX — DirectComposition-Exclusive Top-Level Window
@@ -17,7 +17,13 @@ by DirectComposition. By going one step further and making the form's HWND
 **DComp-exclusive**, Windows never allocates a GDI **redirection bitmap** for
 that window — the window is pure composited content.
 
-Current preview version: `0.9.219-preview.g61ade857e5`.
+Package version: project pin / [versions.md](../warp-api-decision-guide/references/versions.md).
+
+**Designer boundary:** a `D2DForm` is still a Designer pair. `FormBorderStyle`,
+`WindowState` and `UseDirectCompositionExclusiveRendering` are serialized in
+`InitializeComponent`; the ctor calls only `InitializeComponent()`. Keep
+`WindowState = Maximized` out of the design-time path if it disturbs the
+Designer (set it in `OnLoad` guarded by `DesignMode`).
 
 ## What "exclusive" means
 
@@ -81,6 +87,16 @@ area, just with the redirection bitmap available for classic children.
 ## Minimal working DComp-exclusive form
 
 ```csharp
+// KioskForm.Designer.cs (Designer-generated; fragment of InitializeComponent)
+this.UseDirectCompositionExclusiveRendering = true;   // before the handle exists
+this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
+this.BackColor = System.Drawing.Color.Black;
+this.ClientSize = new System.Drawing.Size(1920, 1080);
+this.Render += new System.EventHandler<WarpToolkit.WinForms.DirectX.D2D.D2DRenderEventArgs>(this.OnFrameRender);
+```
+
+```csharp
+// KioskForm.cs
 using WarpToolkit.WinForms.DirectX.Controls;
 using WarpToolkit.WinForms.DirectX.D2D;
 
@@ -89,14 +105,16 @@ internal sealed partial class KioskForm : D2DForm
     public KioskForm()
     {
         InitializeComponent();
+    }
 
-        // Opt the top-level window into DirectComposition-exclusive rendering.
-        UseDirectCompositionExclusiveRendering = true;
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
 
-        FormBorderStyle = FormBorderStyle.None;
-        WindowState     = FormWindowState.Maximized; // fullscreen kiosk
-
-        Render += OnFrameRender;
+        if (!DesignMode)
+        {
+            WindowState = FormWindowState.Maximized; // fullscreen kiosk, runtime only
+        }
     }
 
     private void OnFrameRender(object? sender, D2DRenderEventArgs e)
@@ -111,8 +129,8 @@ internal sealed partial class KioskForm : D2DForm
 ```
 
 Notes:
-- Set `UseDirectCompositionExclusiveRendering` early (constructor / before the
-  handle is created). Use `ResetUseDirectCompositionExclusiveRendering()` to
+- Set `UseDirectCompositionExclusiveRendering` early (in `InitializeComponent`,
+  before the handle is created). Use `ResetUseDirectCompositionExclusiveRendering()` to
   return to the form default. It throws if changed after the handle exists.
 - `DefaultUseDirectCompositionExclusiveRendering` (on `D2DForm`) reports the
   default (`false`). It is a top-level concept only — child `D2DControl`s are always
@@ -143,3 +161,9 @@ render-thread-safe `D2DVisual.PaintContent` event (not `D2DGraphics.FromVisual`)
   construction time.
 - **Do not** assume exclusivity is required for acceleration — a plain
   (non-exclusive) `D2DForm` already renders its client area with Direct2D.
+
+## Final checks
+
+1. `KioskForm`/`D2DForm` is a Designer pair; exclusivity, border and size are serialized in `InitializeComponent`.
+2. No classic child HWNDs on an exclusive form; fullscreen state applied at runtime only.
+3. Render mode/thread selection follows `warp-directx-internal-approaches`; version from the project pin.
