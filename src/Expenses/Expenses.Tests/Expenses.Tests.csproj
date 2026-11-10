@@ -14,5 +14,6 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <ProjectReference Include="..\Expenses.App\Expenses.App.csproj" />
+    <ProjectReference Include="..\Foundry.Local.WinForms\Foundry.Local.WinForms.csproj" />
   </ItemGroup>
 </Project>

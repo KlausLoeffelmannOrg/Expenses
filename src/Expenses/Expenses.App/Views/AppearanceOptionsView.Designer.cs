@@ -92,12 +92,12 @@ partial class AppearanceOptionsView
         PerformLayout();
     }
 
-    private TableLayoutPanel _layout;
-    private Label _fontLabel;
-    private TableLayoutPanel _fontPicker;
-    private TextBox _fontValue;
-    private Button _browseFont;
-    private Label _sizeLabel;
-    private ComboBox _size;
-    private Label _hint;
+    private TableLayoutPanel _layout = null!;
+    private Label _fontLabel = null!;
+    private TableLayoutPanel _fontPicker = null!;
+    private TextBox _fontValue = null!;
+    private Button _browseFont = null!;
+    private Label _sizeLabel = null!;
+    private ComboBox _size = null!;
+    private Label _hint = null!;
 }

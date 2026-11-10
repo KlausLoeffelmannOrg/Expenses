@@ -2,4 +2,6 @@
   <Project Path="Expenses.App/Expenses.App.csproj" />
   <Project Path="Expenses.Core/Expenses.Core.csproj" />
   <Project Path="Expenses.Tests/Expenses.Tests.csproj" />
+  <Project Path="Foundry.Local/Foundry.Local.csproj" />
+  <Project Path="Foundry.Local.WinForms/Foundry.Local.WinForms.csproj" />
 </Solution>

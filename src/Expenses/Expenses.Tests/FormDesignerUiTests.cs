@@ -3,6 +3,7 @@ using Expenses.App;
 using Expenses.App.Dialogs;
 using Expenses.App.Views;
 using Expenses.Core;
+using Foundry.Local.WinForms;
 using Microsoft.Data.Sqlite;
 using Xunit;
 
@@ -15,7 +16,11 @@ public sealed class FormDesignerUiTests
         Exception? error = null;
         var thread = new Thread(() =>
         {
-            try { action(); }
+            try
+            {
+                Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+                action();
+            }
             catch (Exception ex) { error = ex; }
         });
         thread.SetApartmentState(ApartmentState.STA);
@@ -243,6 +248,46 @@ public sealed class FormDesignerUiTests
         using var year = new ReportYearDialog(2024);
         Assert.Equal(2024, year.SelectedYear);
         Assert.Equal("View report", ((Button)year.AcceptButton!).Text);
+    });
+
+    [Fact]
+    public void FoundryModelSurfacesConstructWithoutRuntimeAndShowTheCatalogWhenInitialized() => Sta(() =>
+    {
+        using var dialog = new ModelManagementDialog();
+        Assert.NotNull(dialog.AcceptButton);
+        Assert.NotNull(dialog.CancelButton);
+        dialog.Show();
+        var view = Descendants(dialog).OfType<ModelManagementView>().Single();
+        view.Initialize(new FoundryLocalTests.FakeRuntime());
+        view.RefreshAsync().GetAwaiter().GetResult();
+        var grid = Descendants(view).OfType<DataGridView>().Single();
+        Assert.Single(grid.Rows.Cast<DataGridViewRow>());
+        Assert.True(view.SelectedModel!.SupportsImages);
+        Assert.Contains(Descendants(view).OfType<Label>(), l => l.Text.Contains("0.13.0"));
+        Assert.False(view.IsBusy);
+        dialog.Close();
+    });
+
+    [Fact]
+    public void ReceiptAnalysisCanvasIsDesignerSafeAndDoesNotAllowUsingAnUnextractedReceipt() => Sta(() =>
+    {
+        using var dialog = new ReceiptAnalysisDialog();
+        dialog.Show();
+        Application.DoEvents();
+        Assert.False(((Button)dialog.AcceptButton!).Enabled);
+        Assert.Null(dialog.Receipt);
+        var view = Descendants(dialog).OfType<ImageAnalysisView>().Single();
+        using var service = new Foundry.Local.FoundryLocalService(new FoundryLocalTests.FakeRuntime());
+        view.Initialize(service);
+        view.RefreshModelsAsync().GetAwaiter().GetResult();
+        Assert.Equal("vision:1", view.SelectedModelId);
+        Assert.False(view.IsBusy);
+        using var font = new Font(dialog.Font.FontFamily, 18);
+        dialog.Font = font;
+        dialog.Size = new Size(800, 600);
+        Application.DoEvents();
+        Assert.True(((Button)dialog.CancelButton!).Visible);
+        dialog.Close();
     });
 
     private sealed class RejectingProvider : IServiceProvider
