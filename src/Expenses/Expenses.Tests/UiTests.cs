@@ -72,6 +72,80 @@ public sealed class UiTests
         Assert.StartsWith("2024-02-29,", BookkeepingStore.Csv([expense]).Split('\n')[1]);
     });
 
+    [Theory]
+    [InlineData(9)]
+    [InlineData(18)]
+    public void MainWindowSeparatesResultsAndDetailsAndRestoresTheDraggedProportion(float fontPoints) => Sta(() =>
+    {
+        string root = Path.Combine(Path.GetTempPath(), "ExpensesSplitterTests-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var preferences = new AppPreferences
+            {
+                SettingsFolder = Path.Combine(root, "Settings"),
+                DatabaseFolder = Path.Combine(root, "Data"),
+                BackupFolder = "",
+                ShowRemindersOnStartup = false,
+                InterfaceFontPoints = fontPoints
+            };
+            var store = new BookkeepingStore(preferences.DatabaseFolder);
+            var period = store.AddDemoData();
+            preferences.LastPeriodId = period.Id;
+            var settings = new PreferencesStore(Path.Combine(root, "Bootstrap"));
+            using (var provider = new ServiceCollection().AddSingleton(store).AddSingleton(preferences)
+                .AddSingleton(settings).BuildServiceProvider())
+            using (var form = new MainForm(provider))
+            {
+                form.Show();
+                Application.DoEvents();
+                var split = Descendants(form).OfType<SplitContainer>().Single(s => s.Name == "_details");
+                Assert.Equal(Orientation.Horizontal, split.Orientation);
+                Assert.False(split.IsSplitterFixed);
+                Assert.False(split.Panel1Collapsed);
+                Assert.False(split.Panel2Collapsed);
+                Assert.Equal(BorderStyle.Fixed3D, split.BorderStyle);
+                Assert.InRange((double)split.Panel1.Height / (split.Height - split.SplitterWidth), 0.32, 0.34);
+                var tabs = Assert.Single(split.Panel1.Controls.OfType<TabControl>());
+                var editor = Assert.Single(split.Panel2.Controls.OfType<ExpenseEditor>());
+                Assert.True(tabs.Visible && editor.Visible);
+                Assert.True(editor.Height > tabs.Height);
+
+                form.Size = new Size(1000, 700);
+                Application.DoEvents();
+                Assert.InRange((double)split.Panel1.Height / (split.Height - split.SplitterWidth), 0.31, 0.35);
+                using var largerFont = new Font(form.Font.FontFamily, 18);
+                form.Font = largerFont;
+                Application.DoEvents();
+                Assert.InRange((double)split.Panel1.Height / (split.Height - split.SplitterWidth), 0.30, 0.36);
+                Assert.True(split.Panel1.Height >= split.Panel1MinSize);
+                Assert.True(split.Panel2.Height >= split.Panel2MinSize);
+                Assert.True(split.Panel1.ClientRectangle.Contains(tabs.Bounds));
+                Assert.True(split.Panel2.ClientRectangle.Contains(editor.Bounds));
+
+                split.SplitterDistance = (split.Height - split.SplitterWidth) / 4;
+                form.Close();
+            }
+
+            var restored = settings.Load();
+            Assert.InRange(restored.ResultsSplitRatio, 0.24, 0.26);
+            restored.Window.Width = 1100;
+            restored.Window.Height = 800;
+            using var restoredProvider = new ServiceCollection().AddSingleton(store).AddSingleton(restored)
+                .AddSingleton(settings).BuildServiceProvider();
+            using var reopened = new MainForm(restoredProvider);
+            reopened.Show();
+            Application.DoEvents();
+            var restoredSplit = Descendants(reopened).OfType<SplitContainer>().Single(s => s.Name == "_details");
+            Assert.InRange((double)restoredSplit.Panel1.Height / (restoredSplit.Height - restoredSplit.SplitterWidth), 0.24, 0.26);
+            reopened.Close();
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    });
+
     [Fact]
     public void MainWindowFiltersLocksNavigationAndRestoresLayoutAndCreatesExitBackup() => Sta(() =>
     {

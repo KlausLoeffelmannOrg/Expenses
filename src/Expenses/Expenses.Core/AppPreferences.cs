@@ -11,7 +11,7 @@ public sealed class AppPreferences
     public WindowLayout Window { get; set; } = new();
     public Dictionary<string, int> ColumnWidths { get; set; } = [];
     public int NavigationWidth { get; set; } = 240;
-    public int ResultsHeight { get; set; } = 320;
+    public double ResultsSplitRatio { get; set; } = 1.0 / 3;
     public int? LastPeriodId { get; set; }
     public int ToolbarIconSize { get; set; } = 24;
     public string InterfaceFontFamily { get; set; } = "Segoe UI";

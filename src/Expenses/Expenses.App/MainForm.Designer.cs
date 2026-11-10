@@ -155,9 +155,13 @@ partial class MainForm
         _navigation.Panel2.Controls.Add(_details);
         _tree.Dock = DockStyle.Fill;
         _details.Dock = DockStyle.Fill;
-        _details.Size = new Size(950, 750);
+        _details.Name = "_details";
+        _details.AccessibleName = "Expense list and details splitter";
         _details.Orientation = Orientation.Horizontal;
-        _details.SplitterDistance = 300;
+        _details.Size = new Size(950, 750);
+        _details.BorderStyle = BorderStyle.Fixed3D;
+        _details.SplitterWidth = 8;
+        _details.SplitterDistance = 247;
         _details.Panel1MinSize = 100;
         _details.Panel2MinSize = 100;
         _details.Panel1.Controls.Add(_tabs);

@@ -131,7 +131,10 @@ public partial class MainForm : Form, IServiceProvider
             if (saved.Maximized) WindowState = FormWindowState.Maximized;
             _navigation.SplitterDistance = Math.Clamp(_preferences.NavigationWidth, _navigation.Panel1MinSize,
                 Math.Max(_navigation.Panel1MinSize, _navigation.Width - _navigation.Panel2MinSize - _navigation.SplitterWidth));
-            _details.SplitterDistance = Math.Clamp(_preferences.ResultsHeight, _details.Panel1MinSize,
+            double resultsRatio = double.IsFinite(_preferences.ResultsSplitRatio)
+                && _preferences.ResultsSplitRatio > 0 && _preferences.ResultsSplitRatio < 1
+                ? _preferences.ResultsSplitRatio : 1.0 / 3;
+            _details.SplitterDistance = Math.Clamp((int)((_details.Height - _details.SplitterWidth) * resultsRatio), _details.Panel1MinSize,
                 Math.Max(_details.Panel1MinSize, _details.Height - _details.Panel2MinSize - _details.SplitterWidth));
             foreach (var result in _results)
                 foreach (DataGridViewColumn column in result.Grid.Columns)
@@ -421,7 +424,7 @@ public partial class MainForm : Form, IServiceProvider
                 || (WindowState == FormWindowState.Minimized && _preferences.Window.Maximized)
         };
         _preferences.NavigationWidth = _navigation.SplitterDistance;
-        _preferences.ResultsHeight = _details.SplitterDistance;
+        _preferences.ResultsSplitRatio = (double)_details.SplitterDistance / (_details.Height - _details.SplitterWidth);
         _preferencesStore.Save(_preferences);
     }
 
