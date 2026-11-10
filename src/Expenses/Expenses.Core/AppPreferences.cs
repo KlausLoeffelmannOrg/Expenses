@@ -13,6 +13,10 @@ public sealed class AppPreferences
     public int NavigationWidth { get; set; } = 240;
     public int ResultsHeight { get; set; } = 320;
     public int? LastPeriodId { get; set; }
+    public int ToolbarIconSize { get; set; } = 24;
+    public string InterfaceFontFamily { get; set; } = "Segoe UI";
+    public float InterfaceFontPoints { get; set; } = 9;
+    public int InterfaceFontStyle { get; set; }
     public static string DefaultRoot => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Expenses");
     public static string DefaultBackupFolder => string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("OneDrive"))
         ? "" : Path.Combine(Environment.GetEnvironmentVariable("OneDrive")!, "Expenses", "Backups");

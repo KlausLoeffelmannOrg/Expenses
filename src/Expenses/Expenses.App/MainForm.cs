@@ -22,6 +22,8 @@ public partial class MainForm : Form, IServiceProvider
     public MainForm()
     {
         InitializeComponent();
+        Disposed += (_, _) => DisposeAppearance();
+        _toolbar.ForeColorChanged += (_, _) => { if (_imagesReady) Execute(RefreshCommandImages); };
         WireCommands();
         _results.AddRange([_allResults, _fuelResults, _cameraResults]);
         foreach (var view in _results)
@@ -106,6 +108,7 @@ public partial class MainForm : Form, IServiceProvider
             _store = RequiredService<BookkeepingStore>();
             _preferencesStore = RequiredService<PreferencesStore>();
             _preferences = RequiredService<AppPreferences>();
+            ApplyAppearance();
             var saved = _preferences.Window;
             var bounds = new Rectangle(saved.X, saved.Y, Math.Max(MinimumSize.Width, saved.Width), Math.Max(MinimumSize.Height, saved.Height));
             if (saved.HasPosition && Screen.AllScreens.Any(s => s.WorkingArea.IntersectsWith(bounds)))
@@ -384,6 +387,7 @@ public partial class MainForm : Form, IServiceProvider
             throw;
         }
         _preferences = dialog.Draft;
+        ApplyAppearance();
     }
 
     private void QueuePreferencesSave()

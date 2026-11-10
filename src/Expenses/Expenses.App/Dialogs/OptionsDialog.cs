@@ -23,6 +23,7 @@ public sealed partial class OptionsDialog : Form
         DataContext = Draft;
         _storage.LoadPreferences(Draft);
         _reminders.LoadPreferences(Draft);
+        _appearance.LoadPreferences(Draft);
         _runtime = true;
     }
 
@@ -35,13 +36,16 @@ public sealed partial class OptionsDialog : Form
 
     private void StorageClick(object? sender, EventArgs e) => SelectCategory(_storage, _storageHeader);
     private void RemindersClick(object? sender, EventArgs e) => SelectCategory(_reminders, _remindersHeader);
+    private void AppearanceClick(object? sender, EventArgs e) => SelectCategory(_appearance, _appearanceHeader);
 
     private void SelectCategory(Control view, ToolStripButton header)
     {
         _storage.Visible = view == _storage;
         _reminders.Visible = view == _reminders;
+        _appearance.Visible = view == _appearance;
         _storageHeader.Checked = header == _storageHeader;
         _remindersHeader.Checked = header == _remindersHeader;
+        _appearanceHeader.Checked = header == _appearanceHeader;
         view.BringToFront();
     }
 
@@ -53,6 +57,7 @@ public sealed partial class OptionsDialog : Form
             {
                 _storage.Apply();
                 _reminders.Apply();
+                _appearance.Apply();
             }
             catch (Exception ex) { e.Cancel = true; DialogLayout.Error(this, ex); }
         }

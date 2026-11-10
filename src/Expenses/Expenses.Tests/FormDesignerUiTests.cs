@@ -157,7 +157,7 @@ public sealed class FormDesignerUiTests
         var preferences = new AppPreferences { SettingsFolder = @"C:\Original", ColumnWidths = new() { ["Payee"] = 200 } };
         using var dialog = new OptionsDialog(preferences);
         var categories = Descendants(dialog).OfType<UserControl>().ToArray();
-        Assert.Equal(2, categories.Length);
+        Assert.Equal(3, categories.Length);
         var storage = categories.OfType<StorageOptionsView>().Single();
         var reminders = categories.OfType<ReminderOptionsView>().Single();
         var input = Descendants(storage).OfType<TextBox>().Single(t => t.Text == @"C:\Original");
@@ -166,12 +166,12 @@ public sealed class FormDesignerUiTests
         dialog.Show();
         Application.DoEvents();
         var tabs = dialog.Controls.OfType<ToolStrip>().Single();
-        Assert.Equal(2, tabs.Items.Count);
+        Assert.Equal(3, tabs.Items.Count);
         Assert.True(storage.Visible);
         tabs.Items[1].PerformClick();
         Assert.True(reminders.Visible);
         Assert.False(storage.Visible);
-        Assert.Equal(2, Descendants(dialog).OfType<UserControl>().Count());
+        Assert.Equal(3, Descendants(dialog).OfType<UserControl>().Count());
         dialog.DialogResult = DialogResult.Cancel;
         dialog.Close();
         Assert.Equal(@"C:\Original", preferences.SettingsFolder);
