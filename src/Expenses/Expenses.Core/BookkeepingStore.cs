@@ -46,6 +46,41 @@ public sealed class BookkeepingStore
             .OrderByDescending(e => e.PaidDate).ThenByDescending(e => e.Id).ToList();
     }
 
+    public BookkeepingPeriod AddDemoData()
+    {
+        using var db = Open();
+        using var transaction = db.Database.BeginTransaction();
+        int year = 2024;
+        while (db.Periods.Any(p => p.Year == year && p.Kind == PeriodKind.Year && p.StateCode == ""))
+            if (++year > 9998) throw new InvalidOperationException("No unused annual period is available for demo data.");
+        var period = BookkeepingPeriod.Create(year, PeriodKind.Year, 1, "");
+        db.Periods.Add(period);
+        db.SaveChanges();
+        (string Payee, string Description, string Category, long Cents, int Business, string Tags)[] samples =
+        [
+            ("Demo Fuel Stop", "Fictional client visit", "Fuel", 6234, 75, ""),
+            ("Demo Camera Shop", "Fictional camera accessories", "Supplies", 12995, 100, "Sub Camera"),
+            ("Demo Office", "Fictional stationery", "Supplies", 2875, 100, ""),
+            ("Demo Hosting", "Fictional website hosting", "Other expenses", 1900, 100, ""),
+            ("Demo Cafe", "Fictional client meeting", "Meals", 4250, 50, ""),
+            ("Demo Parking", "Fictional business parking", "Travel", 1500, 100, "")
+        ];
+        for (int i = 0; i < samples.Length; i++)
+        {
+            var sample = samples[i];
+            db.Expenses.Add(new Expense
+            {
+                BookkeepingPeriodId = period.Id, PaidDate = new DateOnly(year, 2, i + 1),
+                Payee = sample.Payee, Description = sample.Description, Category = sample.Category,
+                AmountCents = sample.Cents, BusinessUsePercent = sample.Business,
+                Tags = sample.Tags.Length == 0 ? "DEMO" : $"DEMO, {sample.Tags}", PaymentReference = "Demo only"
+            });
+        }
+        db.SaveChanges();
+        transaction.Commit();
+        return period;
+    }
+
     public Expense SaveExpense(int periodId, ExpenseInput input, int? draftId = null)
     {
         using var db = Open();

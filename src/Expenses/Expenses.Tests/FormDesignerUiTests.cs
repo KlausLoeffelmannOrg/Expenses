@@ -4,8 +4,6 @@ using Expenses.App.Dialogs;
 using Expenses.App.Views;
 using Expenses.Core;
 using Microsoft.Data.Sqlite;
-using WarpToolkit.WinForms.Containers;
-using WarpToolkit.WinForms.Specialized;
 using Xunit;
 
 namespace Expenses.Tests;
@@ -76,7 +74,7 @@ public sealed class FormDesignerUiTests
             Assert.Single(Descendants(dialog).OfType<ReminderOptionsView>());
         }
         if (name == "ExpenseReport")
-            Assert.True(Descendants(dialog).OfType<WarpDataGridView>().Single().Height > 0);
+            Assert.True(Descendants(dialog).OfType<DataGridView>().Single().Height > 0);
         dialog.Close();
     });
 
@@ -99,11 +97,15 @@ public sealed class FormDesignerUiTests
         Assert.Equal(3, results.Length);
         Assert.All(results, view =>
         {
-            Assert.True(view.Visible);
-            Assert.True(view.Grid.Visible);
             Assert.Null(view.Grid.DataSource);
         });
-        Assert.Empty(Descendants(form).OfType<FluentTabControl>().Single().Tabs);
+        var tabs = Descendants(form).OfType<TabControl>().Single();
+        Assert.Equal(3, tabs.TabPages.Count);
+        foreach (TabPage page in tabs.TabPages)
+        {
+            tabs.SelectedTab = page;
+            Assert.True(page.Controls.OfType<ExpenseResultsView>().Single().Grid.Visible);
+        }
         form.Close();
     });
 
@@ -150,7 +152,7 @@ public sealed class FormDesignerUiTests
     });
 
     [Fact]
-    public void OptionsRuntimeUsesOneDraftAndReparentsDesignerCategoriesOnlyOnLoad() => Sta(() =>
+    public void OptionsRuntimeUsesOneDraftAndSelectsDesignerCategories() => Sta(() =>
     {
         var preferences = new AppPreferences { SettingsFolder = @"C:\Original", ColumnWidths = new() { ["Payee"] = 200 } };
         using var dialog = new OptionsDialog(preferences);
@@ -163,11 +165,12 @@ public sealed class FormDesignerUiTests
         dialog.Draft.ColumnWidths["Payee"] = 300;
         dialog.Show();
         Application.DoEvents();
-        var tabs = dialog.Controls.OfType<FluentTabControl>().Single();
-        Assert.Equal(2, tabs.Tabs.Count());
-        Assert.Same(storage, tabs.CurrentTab);
-        tabs.CurrentTabIndex = 1;
-        Assert.Same(reminders, tabs.CurrentTab);
+        var tabs = dialog.Controls.OfType<ToolStrip>().Single();
+        Assert.Equal(2, tabs.Items.Count);
+        Assert.True(storage.Visible);
+        tabs.Items[1].PerformClick();
+        Assert.True(reminders.Visible);
+        Assert.False(storage.Visible);
         Assert.Equal(2, Descendants(dialog).OfType<UserControl>().Count());
         dialog.DialogResult = DialogResult.Cancel;
         dialog.Close();
@@ -231,7 +234,7 @@ public sealed class FormDesignerUiTests
 
         var totals = new[] { new CategoryTotal("Fuel", 12.34M, 6.17M) };
         using var report = new ExpenseReportDialog("Annual expense report - 2024", totals, true);
-        var grid = Descendants(report).OfType<WarpDataGridView>().Single();
+        var grid = Descendants(report).OfType<DataGridView>().Single();
         Assert.Same(totals, grid.DataSource);
         Assert.False(grid.AutoGenerateColumns);
         Assert.Equal(3, grid.Columns.Count);

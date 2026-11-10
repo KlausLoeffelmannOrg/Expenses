@@ -17,7 +17,7 @@ partial class ExpenseReportDialog
     {
         components = new System.ComponentModel.Container();
         _layout = new TableLayoutPanel();
-        _grid = new WarpToolkit.WinForms.Specialized.WarpDataGridView();
+        _grid = new DataGridView();
         _category = new DataGridViewTextBoxColumn();
         _recorded = new DataGridViewTextBoxColumn();
         _business = new DataGridViewTextBoxColumn();
@@ -53,6 +53,7 @@ partial class ExpenseReportDialog
         _grid.AllowUserToDeleteRows = false;
         _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
         _grid.AutoGenerateColumns = false;
+        _grid.EnableHeadersVisualStyles = false;
         _grid.RowHeadersVisible = false;
         _grid.AccessibleName = "Expense totals by category";
         _grid.TabIndex = 0;
@@ -139,7 +140,7 @@ partial class ExpenseReportDialog
     }
 
     private TableLayoutPanel _layout;
-    private WarpToolkit.WinForms.Specialized.WarpDataGridView _grid;
+    private DataGridView _grid;
     private DataGridViewTextBoxColumn _category;
     private DataGridViewTextBoxColumn _recorded;
     private DataGridViewTextBoxColumn _business;

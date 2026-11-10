@@ -7,7 +7,6 @@ using Expenses.Core;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using PdfSharp.Pdf.IO;
-using WarpToolkit.WinForms.Containers;
 using Xunit;
 
 namespace Expenses.Tests;
@@ -50,11 +49,11 @@ public sealed class UiTests
     });
 
     [Fact]
-    public void OptionsUseFluentTabsAndCancelDoesNotMutateLiveSettings() => Sta(() =>
+    public void OptionsUseCategoryHeadersAndCancelDoesNotMutateLiveSettings() => Sta(() =>
     {
         var preferences = new AppPreferences { SettingsFolder = @"C:\OriginalSettings", BackupFolder = "" };
         using var dialog = new OptionsDialog(preferences);
-        Assert.Single(dialog.Controls.OfType<FluentTabControl>());
+        Assert.Single(dialog.Controls.OfType<ToolStrip>());
         var editor = Descendants(dialog).OfType<TextBox>().First(b => b.Text == preferences.SettingsFolder);
         editor.Text = @"C:\ChangedSettings";
         dialog.DialogResult = DialogResult.Cancel;
@@ -107,11 +106,11 @@ public sealed class UiTests
             var editor = Descendants(form).OfType<ExpenseEditor>().Single();
             var tree = Descendants(form).OfType<PeriodTreeView>().Single();
             Assert.Equal(TreeViewDrawMode.OwnerDrawAll, tree.DrawMode);
-            var tabs = Descendants(form).OfType<FluentTabControl>().Single();
-            tabs.CurrentTabIndex = 1;
+            var tabs = Descendants(form).OfType<TabControl>().Single();
+            tabs.SelectedIndex = 1;
             results[1].Grid.CurrentCell = results[1].Grid.Rows[0].Cells[0];
             Assert.Equal("Station", editor.ReadInput().Payee);
-            tabs.CurrentTabIndex = 2;
+            tabs.SelectedIndex = 2;
             results[2].Grid.CurrentCell = results[2].Grid.Rows[0].Cells[0];
             Assert.Equal("Shop", editor.ReadInput().Payee);
             Assert.False(editor.IsEditing);

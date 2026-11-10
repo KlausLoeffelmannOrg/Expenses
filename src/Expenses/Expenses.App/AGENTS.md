@@ -1,7 +1,8 @@
 # Expenses WinForms UI
 
-This project targets .NET 11 on Windows and uses WARP. Preserve the existing
-startup model, package versions, storage behavior, and bookkeeping terminology.
+This project targets .NET 11 on Windows without WARP. Preserve package versions,
+storage behavior, and bookkeeping terminology. Use built-in WinForms APIs and
+small local helpers; PDFsharp-GDI remains the PDF exporter.
 
 ## Read before UI work
 
@@ -30,13 +31,12 @@ Then load only the topic skills and references needed for the change.
   genuinely dynamic content in the main partial. Do not hide the editor's design
   surface during parameterless construction merely to implement runtime
   no-selection behavior.
-- Verify WARP's actual tab serialization API before assigning tab collections.
-  If a collection is runtime-only, keep its child UserControls designer-editable
-  and document the narrow runtime attachment boundary.
+- Place fixed TabPages and their views in the Designer partial.
 
 ## Preserve UI behavior
 
-Use `FluentTabControl`, not the native `TabControl`, and `WarpDataGridView`.
+Use native `TabControl` for result filters and `DataGridView` for tables.
+Options uses text-only ToolStrip category headers and a panel of UserControls.
 Retain masked Gregorian U.S. date and USD entry, draft-only options editing,
 Save/Cancel/Stash navigation locking, and all existing commands and shortcuts.
 Use responsive layout and allow dialogs and editor content to remain usable
@@ -46,8 +46,8 @@ when resized, scaled, or given longer text.
 
 - Ordinary command ToolStrips require semantic icons. A text-only strip needs
   an explicit user request or domain-specific text/header purpose. This app uses
-  WARP: follow `warp-toolstrip-icons` and `warp-symbols`, not a separate local
-  glyph factory. Preserve command Text, shortcuts, tooltips, and accessible names.
+  a shared local symbol-font image factory (no WARP). Preserve command Text,
+  shortcuts, tooltips, and accessible names.
 - Regenerate owned raster images from a stable logical baseline using the
   settled font and current host DPI once. Keep actual pixels and
   `ImageScalingSize` consistent; dispose replaced owned images. Apply the same

@@ -17,7 +17,7 @@ partial class ExpenseResultsView
 
     private void InitializeComponent()
     {
-        _grid = new WarpToolkit.WinForms.Specialized.WarpDataGridView();
+        _grid = new DataGridView();
         _paidDateColumn = new DataGridViewTextBoxColumn();
         _payeeColumn = new DataGridViewTextBoxColumn();
         _descriptionColumn = new DataGridViewTextBoxColumn();
@@ -86,6 +86,7 @@ partial class ExpenseResultsView
         _grid.AllowUserToDeleteRows = false;
         _grid.AllowUserToOrderColumns = true;
         _grid.AutoGenerateColumns = false;
+        _grid.EnableHeadersVisualStyles = false;
         _grid.AccessibleName = "Expense results";
         _grid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
         _grid.DefaultCellStyle = _gridCellStyle;
@@ -109,7 +110,7 @@ partial class ExpenseResultsView
         ResumeLayout(false);
     }
 
-    private WarpToolkit.WinForms.Specialized.WarpDataGridView _grid = null!;
+    private DataGridView _grid = null!;
     private DataGridViewTextBoxColumn _paidDateColumn = null!;
     private DataGridViewTextBoxColumn _payeeColumn = null!;
     private DataGridViewTextBoxColumn _descriptionColumn = null!;

@@ -16,6 +16,29 @@ public sealed class BookkeepingTests : IDisposable
         new(0, Guid.Empty, date, "Station", "Client visit", "Fuel", "Sub Camera", "Business card", amount, 50, "");
 
     [Fact]
+    public void DemoDataUsesSeparatePeriodsAndLeavesExistingRecordsUntouched()
+    {
+        var real = _store.AddPeriod(2024, PeriodKind.Year, 1, "");
+        var saved = _store.SaveExpense(real.Id, Input());
+        var demo = _store.AddDemoData();
+        var again = _store.AddDemoData();
+        Assert.NotEqual(real.Id, demo.Id);
+        Assert.NotEqual(demo.Id, again.Id);
+        Assert.Equal(saved.Revision, Assert.Single(_store.GetExpenses(real.Id)).Revision);
+        var expenses = _store.GetExpenses(demo.Id);
+        Assert.Equal(6, expenses.Count);
+        Assert.All(expenses, e =>
+        {
+            Assert.Contains("DEMO", e.Tags);
+            Assert.InRange(e.PaidDate, demo.StartDate, demo.EndDate);
+            Assert.True(e.Amount > 0);
+        });
+        Assert.Contains(expenses, e => e.Category == "Fuel");
+        Assert.Contains(expenses, e => e.Tags.Contains("Sub Camera"));
+        Assert.Equal(6, new BookkeepingStore(Path.Combine(_root, "Data")).GetExpenses(again.Id).Count);
+    }
+
+    [Fact]
     public void MigrationsCreateSchemaAndStatePeriodsRemainDistinctAfterReopen()
     {
         var ca = _store.AddPeriod(2024, PeriodKind.Month, 2, "ca");

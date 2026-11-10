@@ -1,53 +1,33 @@
-﻿using Microsoft.Extensions.DependencyInjection;
 using Expenses.Core;
-using Microsoft.Extensions.WinForms;
-using WarpToolkit.Microsoft.Extensions.Logging;
-using WarpToolkit.WinForms.AppServices.ServiceExtensions;
 
-namespace Expenses.App
+namespace Expenses.App;
+
+internal static class Program
 {
-    internal static class Program
+    [STAThread]
+    private static void Main()
     {
-        /// <summary>
-        ///  The main entry point for the application.
-        /// </summary>
-        [STAThread]
-        private static void Main()
+        ApplicationConfiguration.Initialize();
+        Application.SetColorMode(SystemColorMode.System);
+        Application.ThreadException += (_, e) => Dialogs.DialogLayout.Error(null!, e.Exception);
+        try
         {
             var preferencesStore = new PreferencesStore();
-            AppPreferences preferences;
-            BookkeepingStore store;
-            try
-            {
-                preferences = preferencesStore.Load();
-                store = new BookkeepingStore(preferences.DatabaseFolder);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Expenses could not open its settings or database:\n{ex.Message}",
-                    "Expenses - startup failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-            WinFormsApplicationBuilder builder = WinFormsApplication.CreateBuilder();
-
-            builder.Services.AddSingleton(preferencesStore);
-            builder.Services.AddSingleton(preferences);
-            builder.Services.AddSingleton(store);
-            builder.Services.AddWinFormsUserSettingsService();
-            builder.Services.AddWinFormsExceptionService();
-            builder.Logging.UseWinFormsLogging();
-
-            builder.UseStartupForm<MainForm>()
-                .UseHighDpiMode(HighDpiMode.PerMonitorV2)
-                .UseColorMode(SystemColorMode.System)
-                .UseTextRenderingV2()
-                .UseLegacyVisualStyles()
-                .UseFormRevealMode(FormRevealMode.Deferred)
-                .UseVisualStylesMode(VisualStylesMode.Net11)
-                ;
-
-            WinFormsApplication app = builder.Build();
-            app.Run();
+            var preferences = preferencesStore.Load();
+            var store = new BookkeepingStore(preferences.DatabaseFolder);
+            Application.Run(new MainForm(new AppServices(store, preferencesStore, preferences)));
         }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Expenses could not start:\n{ex.Message}",
+                "Expenses - startup failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private sealed record AppServices(BookkeepingStore Store, PreferencesStore PreferencesStore, AppPreferences Preferences) : IServiceProvider
+    {
+        public object? GetService(Type type) => type == typeof(BookkeepingStore) ? Store
+            : type == typeof(PreferencesStore) ? PreferencesStore
+            : type == typeof(AppPreferences) ? Preferences : null;
     }
 }

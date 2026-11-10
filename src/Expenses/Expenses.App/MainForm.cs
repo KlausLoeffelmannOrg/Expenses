@@ -3,7 +3,6 @@ using System.Text.Json;
 using Expenses.App.Dialogs;
 using Expenses.App.Views;
 using Expenses.Core;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace Expenses.App;
 
@@ -36,7 +35,7 @@ public partial class MainForm : Form, IServiceProvider
                 QueuePreferencesSave();
             };
         }
-        _tabs.TabChanged += (_, _) => SelectionChanged();
+        _tabs.SelectedIndexChanged += (_, _) => SelectionChanged();
         _tree.BeforeSelect += (_, e) => e.Cancel = _editor.IsEditing;
         _tree.AfterSelect += (_, e) =>
         {
@@ -66,7 +65,7 @@ public partial class MainForm : Form, IServiceProvider
     object? IServiceProvider.GetService(Type serviceType) => _serviceProvider?.GetService(serviceType);
     private BookkeepingStore Store => _store ?? throw new InvalidOperationException("Bookkeeping storage is not initialized.");
     private Expense? SelectedExpense => _results.Count == 0 ? null
-        : _results[Math.Clamp(_tabs.CurrentTabIndex, 0, _results.Count - 1)].Grid.CurrentRow?.DataBoundItem as Expense;
+        : _results[Math.Clamp(_tabs.SelectedIndex, 0, _results.Count - 1)].Grid.CurrentRow?.DataBoundItem as Expense;
 
     private void WireCommands()
     {
@@ -86,6 +85,7 @@ public partial class MainForm : Form, IServiceProvider
         RegisterCommand(_annualReport, () => ShowReport(true), () => !_editor.IsEditing);
         RegisterCommand(_allReminders, ShowAllReminders, () => !_editor.IsEditing);
         RegisterCommand(_options, ShowOptions, () => !_editor.IsEditing);
+        RegisterCommand(_demoData, AddDemoData, () => !_editor.IsEditing);
     }
 
     private void RegisterCommand(ToolStripItem item, Action action, Func<bool> enabled, ToolStripItem? button = null)
@@ -103,20 +103,9 @@ public partial class MainForm : Form, IServiceProvider
         if (_serviceProvider is null || _loaded) return;
         Execute(() =>
         {
-            _store = _serviceProvider.GetRequiredService<BookkeepingStore>();
-            _preferencesStore = _serviceProvider.GetRequiredService<PreferencesStore>();
-            _preferences = _serviceProvider.GetRequiredService<AppPreferences>();
-            // Pinned WARP exposes only runtime AddTab and a read-only Tabs enumeration.
-            // Reparent the serialized preview instances, never duplicate tab views.
-            if (!_tabs.Tabs.Any())
-            {
-                _tabs.AddTab("All expenses", _allResults);
-                _tabs.AddTab("Fuel", _fuelResults);
-                _tabs.AddTab("Sub Camera", _cameraResults);
-                _resultsPreview.Visible = false;
-                _tabs.Dock = DockStyle.Fill;
-                _tabs.BringToFront();
-            }
+            _store = RequiredService<BookkeepingStore>();
+            _preferencesStore = RequiredService<PreferencesStore>();
+            _preferences = RequiredService<AppPreferences>();
             var saved = _preferences.Window;
             var bounds = new Rectangle(saved.X, saved.Y, Math.Max(MinimumSize.Width, saved.Width), Math.Max(MinimumSize.Height, saved.Height));
             if (saved.HasPosition && Screen.AllScreens.Any(s => s.WorkingArea.IntersectsWith(bounds)))
@@ -142,6 +131,19 @@ public partial class MainForm : Form, IServiceProvider
             if (last is not null) OpenPeriod(last);
             UpdateCommands();
         });
+    }
+
+    private T RequiredService<T>() where T : class =>
+        _serviceProvider?.GetService(typeof(T)) as T
+        ?? throw new InvalidOperationException($"The application service {typeof(T).Name} is not available.");
+
+    private void AddDemoData()
+    {
+        if (MessageBox.Show(this, "Add six fictional expenses in a separate annual bookkeeping period?\nExisting records will not be changed.",
+            "Add demo data", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+        var period = Store.AddDemoData();
+        ReloadTree();
+        OpenPeriod(period);
     }
 
     private void Execute(Action action)

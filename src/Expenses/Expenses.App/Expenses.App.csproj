@@ -6,13 +6,10 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
-    <WarpToolkitVersion>0.9.852-preview.g888af68ad8</WarpToolkitVersion>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="WarpToolkit.WinForms.AppServices" Version="0.9.852-preview.g888af68ad8" />
-    <PackageReference Include="WarpToolkit.WinForms" Version="$(WarpToolkitVersion)" />
-    <PackageReference Include="WarpToolkit.WinForms.Specialized" Version="$(WarpToolkitVersion)" />
     <PackageReference Include="PDFsharp-GDI" Version="6.5.0" />
     <ProjectReference Include="..\Expenses.Core\Expenses.Core.csproj" />
     <InternalsVisibleTo Include="Expenses.Tests" />

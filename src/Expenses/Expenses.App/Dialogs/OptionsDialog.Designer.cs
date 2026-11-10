@@ -16,8 +16,10 @@ partial class OptionsDialog
     private void InitializeComponent()
     {
         components = new System.ComponentModel.Container();
-        _tabs = new WarpToolkit.WinForms.Containers.FluentTabControl();
-        _preview = new TableLayoutPanel();
+        _tabs = new ToolStrip();
+        _storageHeader = new ToolStripButton();
+        _remindersHeader = new ToolStripButton();
+        _preview = new Panel();
         _storage = new Views.StorageOptionsView();
         _reminders = new Views.ReminderOptionsView();
         _footer = new TableLayoutPanel();
@@ -27,21 +29,26 @@ partial class OptionsDialog
         _footer.SuspendLayout();
         SuspendLayout();
         _tabs.Dock = DockStyle.Top;
-        _tabs.Height = 45;
+        _tabs.GripStyle = ToolStripGripStyle.Hidden;
+        _tabs.LayoutStyle = ToolStripLayoutStyle.HorizontalStackWithOverflow;
+        _tabs.Items.AddRange(new ToolStripItem[] { _storageHeader, _remindersHeader });
         _tabs.Name = "_tabs";
+        _storageHeader.Text = "&Storage";
+        _storageHeader.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        _storageHeader.Checked = true;
+        _storageHeader.Click += StorageClick;
+        _remindersHeader.Text = "&Notes and reminders";
+        _remindersHeader.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        _remindersHeader.Click += RemindersClick;
         _preview.Dock = DockStyle.Fill;
-        _preview.ColumnCount = 1;
-        _preview.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        _preview.RowCount = 2;
-        _preview.RowStyles.Add(new RowStyle(SizeType.Percent, 75F));
-        _preview.RowStyles.Add(new RowStyle(SizeType.Percent, 25F));
-        _preview.Controls.Add(_storage, 0, 0);
-        _preview.Controls.Add(_reminders, 0, 1);
+        _preview.Controls.Add(_storage);
+        _preview.Controls.Add(_reminders);
         _preview.Name = "_preview";
         _storage.Dock = DockStyle.Fill;
         _storage.Name = "_storage";
         _reminders.Dock = DockStyle.Fill;
         _reminders.Name = "_reminders";
+        _reminders.Visible = false;
         _footer.Name = "_footer";
         _footer.AutoSize = true;
         _footer.AutoSizeMode = AutoSizeMode.GrowAndShrink;
@@ -60,7 +67,7 @@ partial class OptionsDialog
         _ok.Margin = new Padding(4);
         _ok.Text = "OK";
         _ok.TabIndex = 0;
-        _ok.Click += AcceptClick;
+        _ok.DialogResult = DialogResult.OK;
         _cancel.AutoSize = true;
         _cancel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
         _cancel.Dock = DockStyle.Fill;
@@ -90,8 +97,10 @@ partial class OptionsDialog
         PerformLayout();
     }
 
-    private WarpToolkit.WinForms.Containers.FluentTabControl _tabs;
-    private TableLayoutPanel _preview;
+    private ToolStrip _tabs;
+    private ToolStripButton _storageHeader;
+    private ToolStripButton _remindersHeader;
+    private Panel _preview;
     private Views.StorageOptionsView _storage;
     private Views.ReminderOptionsView _reminders;
     private TableLayoutPanel _footer;
