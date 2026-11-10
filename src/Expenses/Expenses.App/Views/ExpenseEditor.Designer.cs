@@ -233,7 +233,7 @@ partial class ExpenseEditor
         Controls.Add(_actions);
         Controls.Add(_heading);
         AutoScaleDimensions = new SizeF(7F, 15F);
-        AutoScaleMode = AutoScaleMode.Font;
+        AutoScaleMode = AutoScaleMode.Inherit;
         Name = "ExpenseEditor";
         Padding = new Padding(8);
         Size = new Size(700, 450);

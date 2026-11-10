@@ -88,7 +88,7 @@ public sealed class FormDesignerUiTests
     {
         using var form = new MainForm();
         Assert.Null(((IServiceProvider)form).GetService(typeof(BookkeepingStore)));
-        Assert.Equal(new[] { "&File", "&Edit", "&View", "&Tools" },
+        Assert.Equal(new[] { "&File", "&Edit", "&View", "&Tools", "F&oundry" },
             form.MainMenuStrip!.Items.Cast<ToolStripMenuItem>().Select(i => i.Text));
         var edit = form.MainMenuStrip.Items.Cast<ToolStripMenuItem>().Single(i => i.Text == "&Edit");
         Assert.Contains(edit.DropDownItems.OfType<ToolStripMenuItem>(), i => i.ShortcutKeys == (Keys.Control | Keys.N));

@@ -150,6 +150,66 @@ public sealed class UiTests
     });
 
     [Fact]
+    public void FoundryReceiptStagesAnUnsavedLockedDraftAndCopiesImageOnlyOnSave() => Sta(() =>
+    {
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+        string root = Path.Combine(Path.GetTempPath(), "ExpensesImportTests-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new BookkeepingStore(Path.Combine(root, "Data"));
+            var period = store.AddPeriod(2024, PeriodKind.Month, 2, "");
+            var preferences = new AppPreferences
+            {
+                SettingsFolder = Path.Combine(root, "Settings"), DatabaseFolder = Path.Combine(root, "Data"),
+                BackupFolder = "", ShowRemindersOnStartup = false, LastPeriodId = period.Id,
+                InterfaceFontPoints = 18, ToolbarIconSize = 36
+            };
+            using var provider = new ServiceCollection().AddSingleton(store).AddSingleton(preferences)
+                .AddSingleton(new PreferencesStore(Path.Combine(root, "Bootstrap"))).BuildServiceProvider();
+            string path = Path.Combine(root, "sample.png");
+            using (var bitmap = new Bitmap(100, 100)) bitmap.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+            using var baseline = new MainForm();
+            baseline.Show();
+            var minimumSize = baseline.MinimumSize;
+            baseline.Close();
+            using var form = new MainForm(provider);
+            form.Show();
+            Application.DoEvents();
+            var toolbar = Descendants(form).OfType<ToolStrip>().Single(t => t.Name == "_toolbar");
+            Assert.Equal(SymbolImageFactory.PixelSize(36, 18, form.DeviceDpi), toolbar.ImageScalingSize.Width);
+            Assert.Equal(minimumSize, form.MinimumSize);
+            var menu = form.MainMenuStrip!.Items.OfType<ToolStripMenuItem>().Single(i => i.Text == "F&oundry");
+            Assert.All(menu.DropDownItems.OfType<ToolStripMenuItem>(), item => Assert.True(item.Enabled));
+            form.StageReceipt(ReceiptImportTests.Sample(), path);
+            var editor = Descendants(form).OfType<ExpenseEditor>().Single();
+            Assert.True(editor.IsEditing);
+            Assert.Equal("11.25", editor.ReadInput().Amount);
+            Assert.Equal("Demo Office", editor.ReadInput().Payee);
+            Assert.Equal(0, editor.ReadInput().BusinessUsePercent);
+            Assert.Empty(store.GetExpenses(period.Id));
+            Assert.False(Directory.Exists(Path.Combine(root, "Data", "Receipts")));
+            Assert.All(menu.DropDownItems.OfType<ToolStripMenuItem>(), item => Assert.False(item.Enabled));
+            var editMenu = form.MainMenuStrip.Items.OfType<ToolStripMenuItem>().Single(i => i.Text == "&Edit");
+            editMenu.DropDownItems.OfType<ToolStripMenuItem>().Single(i => i.Text == "&Cancel edit").PerformClick();
+            Assert.Empty(store.GetExpenses(period.Id));
+            Assert.False(Directory.Exists(Path.Combine(root, "Data", "Receipts")));
+            form.StageReceipt(ReceiptImportTests.Sample(), path);
+            editMenu.DropDownItems.OfType<ToolStripMenuItem>().Single(i => i.ShortcutKeys == (Keys.Control | Keys.S)).PerformClick();
+            var saved = Assert.Single(store.GetExpenses(period.Id));
+            Assert.Equal(1125, saved.AmountCents);
+            Assert.False(Path.IsPathRooted(saved.ReceiptPath));
+            Assert.Equal(File.ReadAllBytes(path), File.ReadAllBytes(Path.Combine(root, "Data", saved.ReceiptPath)));
+            Assert.False(editor.IsEditing);
+            form.Close();
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+        }
+    });
+
+    [Fact]
     public void PdfExportProducesReadableMultipageDocument() => Sta(() =>
     {
         string path = Path.Combine(Path.GetTempPath(), $"ExpensesPdfTests-{Guid.NewGuid():N}.pdf");

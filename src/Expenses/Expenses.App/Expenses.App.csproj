@@ -12,6 +12,7 @@
   <ItemGroup>
     <PackageReference Include="PDFsharp-GDI" Version="6.5.0" />
     <ProjectReference Include="..\Expenses.Core\Expenses.Core.csproj" />
+    <ProjectReference Include="..\Foundry.Local.WinForms\Foundry.Local.WinForms.csproj" />
     <InternalsVisibleTo Include="Expenses.Tests" />
   </ItemGroup>
 

@@ -21,6 +21,9 @@ partial class MainForm
         _editMenu = new ToolStripMenuItem();
         _viewMenu = new ToolStripMenuItem();
         _toolsMenu = new ToolStripMenuItem();
+        _foundryMenu = new ToolStripMenuItem();
+        _manageFoundryModels = new ToolStripMenuItem();
+        _importReceipt = new ToolStripMenuItem();
         _newPeriod = new ToolStripMenuItem();
         _openPeriod = new ToolStripMenuItem();
         _exportCsv = new ToolStripMenuItem();
@@ -77,7 +80,7 @@ partial class MainForm
         SuspendLayout();
         _menu.Dock = DockStyle.Top;
         _menu.Name = "_menu";
-        _menu.Items.AddRange(new ToolStripItem[] { _fileMenu, _editMenu, _viewMenu, _toolsMenu });
+        _menu.Items.AddRange(new ToolStripItem[] { _fileMenu, _editMenu, _viewMenu, _toolsMenu, _foundryMenu });
         _fileMenu.Text = "&File";
         _fileMenu.DropDownItems.AddRange(new ToolStripItem[] { _newPeriod, _openPeriod, _fileExportSeparator, _exportCsv, _exportPdf, _fileExitSeparator, _exit });
         _editMenu.Text = "&Edit";
@@ -86,6 +89,10 @@ partial class MainForm
         _viewMenu.DropDownItems.AddRange(new ToolStripItem[] { _periodReport, _annualReport, _allReminders });
         _toolsMenu.Text = "&Tools";
         _toolsMenu.DropDownItems.AddRange(new ToolStripItem[] { _demoData, _options });
+        _foundryMenu.Text = "F&oundry";
+        _foundryMenu.DropDownItems.AddRange(new ToolStripItem[] { _manageFoundryModels, _importReceipt });
+        _manageFoundryModels.Text = "&Model management...";
+        _importReceipt.Text = "&Expense from receipt image...";
         _demoData.Text = "Add &demo data...";
         _newPeriod.Text = "&New bookkeeping period...";
         _openPeriod.Text = "&Open bookkeeping period...";
@@ -223,6 +230,9 @@ partial class MainForm
     private ToolStripMenuItem _editMenu;
     private ToolStripMenuItem _viewMenu;
     private ToolStripMenuItem _toolsMenu;
+    private ToolStripMenuItem _foundryMenu;
+    private ToolStripMenuItem _manageFoundryModels;
+    private ToolStripMenuItem _importReceipt;
     private ToolStripMenuItem _newPeriod;
     private ToolStripMenuItem _openPeriod;
     private ToolStripMenuItem _exportCsv;

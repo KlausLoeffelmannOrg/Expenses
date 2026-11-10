@@ -99,6 +99,22 @@ The Translation tab exposes both language directions, alternatives/examples for
 words, idiom explanations, and ordinary text translation. Cancel buttons cancel
 pending operations without unloading the shared model.
 
+### Expenses integration
+
+Use Foundry > Model management to download/load a multimodal model. Open a
+bookkeeping period, then choose Foundry > Expense from receipt image. Browse to
+a PNG/JPEG, extract it, inspect the original and the structured result, and choose
+Use as expense draft. This does **not** save an expense: the ordinary editor's
+Save/Cancel/Stash workflow still applies, and the original image is copied to
+managed receipts only when saved. One receipt becomes one expense using its
+total; line items are retained in the draft description.
+
+Unknown dates/vendors stay blank. Dates outside the current period are not
+silently moved. Foreign or unknown currency, missing totals, and totals that do
+not fit the USD editor leave Amount blank; no exchange rate is invented.
+Business use starts at zero because a receipt cannot establish business use.
+Review the business purpose, category, amount, date, and allocation before Save.
+
 Settings default to `%LOCALAPPDATA%\Expenses`, with the SQLite database and
 managed receipts in `Data`. Tools > Options can relocate storage and configure
 an additional backup folder. Keep the active database on a local disk; use

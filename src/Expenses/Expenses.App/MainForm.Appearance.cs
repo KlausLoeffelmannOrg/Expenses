@@ -24,7 +24,8 @@ public partial class MainForm
         (_cancelEdit, CommandSymbol.Cancel), (_cancelButton, CommandSymbol.Cancel),
         (_stashDraft, CommandSymbol.Stash), (_stashButton, CommandSymbol.Stash),
         (_periodReport, CommandSymbol.Report), (_annualReport, CommandSymbol.Report),
-        (_allReminders, CommandSymbol.Note), (_options, CommandSymbol.Options), (_demoData, CommandSymbol.Demo)
+        (_allReminders, CommandSymbol.Note), (_options, CommandSymbol.Options), (_demoData, CommandSymbol.Demo),
+        (_foundryMenu, CommandSymbol.Foundry), (_manageFoundryModels, CommandSymbol.Options), (_importReceipt, CommandSymbol.Image)
     ];
 
     private void ApplyAppearance()
@@ -42,13 +43,17 @@ public partial class MainForm
             Font = replacement;
             _ownedFont = replacement;
             PerformAutoScale();
-            if (preserve) { MinimumSize = minimum; MaximumSize = maximum; Bounds = bounds; }
+            MinimumSize = minimum;
+            MaximumSize = maximum;
+            if (preserve) Bounds = bounds;
         }
         finally
         {
             ResumeLayout(true);
             _applyingAppearance = false;
-            if (preserve) { MinimumSize = minimum; MaximumSize = maximum; Bounds = bounds; }
+            MinimumSize = minimum;
+            MaximumSize = maximum;
+            if (preserve) Bounds = bounds;
             old?.Dispose();
         }
         if (_imagesReady) RefreshCommandImages();

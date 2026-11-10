@@ -46,6 +46,8 @@ public sealed partial class ImageAnalysisView : UserControl
     public Task SelectImageAsync(string path) => RunAsync(async ct =>
     {
         var input = await ImageInput.FromFileAsync(path, ct);
+        ct.ThrowIfCancellationRequested();
+        if (IsDisposed) return;
         using var stream = input.OpenRead();
         using var source = System.Drawing.Image.FromStream(stream);
         if ((long)source.Width * source.Height > 16_000_000 || source.Width > 8192 || source.Height > 8192)
@@ -80,7 +82,9 @@ public sealed partial class ImageAnalysisView : UserControl
         }
         else
         {
-            _output.Text = await _service.DescribeImageAsync(id, _image, ct);
+            string description = await _service.DescribeImageAsync(id, _image, ct);
+            if (IsDisposed) return;
+            _output.Text = description;
             _state.Text = "Description complete. Verify it against the image.";
         }
     }, receipt ? "Extracting receipt locally..." : "Describing image locally...");

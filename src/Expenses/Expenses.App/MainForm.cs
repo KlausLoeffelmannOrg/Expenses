@@ -23,6 +23,7 @@ public partial class MainForm : Form, IServiceProvider
     {
         InitializeComponent();
         Disposed += (_, _) => DisposeAppearance();
+        Disposed += (_, _) => _foundry?.Dispose();
         _toolbar.ForeColorChanged += (_, _) => { if (_imagesReady) Execute(RefreshCommandImages); };
         WireCommands();
         _results.AddRange([_allResults, _fuelResults, _cameraResults]);
@@ -88,6 +89,8 @@ public partial class MainForm : Form, IServiceProvider
         RegisterCommand(_allReminders, ShowAllReminders, () => !_editor.IsEditing);
         RegisterCommand(_options, ShowOptions, () => !_editor.IsEditing);
         RegisterCommand(_demoData, AddDemoData, () => !_editor.IsEditing);
+        RegisterCommand(_manageFoundryModels, ShowFoundryModels, () => !_editor.IsEditing);
+        RegisterCommand(_importReceipt, ImportReceipt, () => _period is not null && !_editor.IsEditing);
     }
 
     private void RegisterCommand(ToolStripItem item, Action action, Func<bool> enabled, ToolStripItem? button = null)
@@ -118,7 +121,13 @@ public partial class MainForm : Form, IServiceProvider
                 Location = new Point(Math.Clamp(bounds.X, area.Left, Math.Max(area.Left, area.Right - Width)),
                     Math.Clamp(bounds.Y, area.Top, Math.Max(area.Top, area.Bottom - Height)));
             }
-            else CenterToScreen();
+            else
+            {
+                var area = Screen.FromControl(this).WorkingArea;
+                Size = new Size(Math.Max(MinimumSize.Width, area.Width * 3 / 4),
+                    Math.Max(MinimumSize.Height, area.Height * 4 / 5));
+                CenterToScreen();
+            }
             if (saved.Maximized) WindowState = FormWindowState.Maximized;
             _navigation.SplitterDistance = Math.Clamp(_preferences.NavigationWidth, _navigation.Panel1MinSize,
                 Math.Max(_navigation.Panel1MinSize, _navigation.Width - _navigation.Panel2MinSize - _navigation.SplitterWidth));
@@ -174,7 +183,7 @@ public partial class MainForm : Form, IServiceProvider
     private void SelectPeriod(bool create)
     {
         if (_editor.IsEditing) return;
-        using var dialog = new PeriodDialog(Store, create);
+        using var dialog = new PeriodDialog(Store, create) { Font = Font };
         if (dialog.ShowDialog(this) == DialogResult.OK && dialog.SelectedPeriod is { } period)
         {
             ReloadTree();
@@ -277,7 +286,7 @@ public partial class MainForm : Form, IServiceProvider
     private void StashExpense()
     {
         if (!_editor.IsEditing || _period is null) return;
-        using var dialog = new TextEntryDialog("Stash expense draft", "&Draft name:");
+        using var dialog = new TextEntryDialog("Stash expense draft", "&Draft name:") { Font = Font };
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
         Store.Stash(_period.Id, dialog.EnteredText, _editor.ReadInput(), _activeDraft);
         _activeDraft = null;
@@ -319,7 +328,7 @@ public partial class MainForm : Form, IServiceProvider
 
     private void AddReminder()
     {
-        using var dialog = new TextEntryDialog("Add note or reminder", "&Note / reminder:", true, _period is not null);
+        using var dialog = new TextEntryDialog("Add note or reminder", "&Note / reminder:", true, _period is not null) { Font = Font };
         if (dialog.ShowDialog(this) == DialogResult.OK)
             Store.AddReminder(dialog.PeriodOnly ? _period?.Id : null, dialog.EnteredText);
     }
@@ -328,7 +337,7 @@ public partial class MainForm : Form, IServiceProvider
     {
         var reminders = Store.GetReminders(periodId);
         if (reminders.Count == 0) return;
-        using var dialog = new ReminderDialog(title, reminders);
+        using var dialog = new ReminderDialog(title, reminders) { Font = Font };
         if (dialog.ShowDialog(this) == DialogResult.OK) Store.DismissReminders(reminders.Select(r => r.Id));
     }
 
@@ -343,13 +352,13 @@ public partial class MainForm : Form, IServiceProvider
         int year = _period?.Year ?? DateTime.Today.Year;
         if (annual)
         {
-            using var picker = new ReportYearDialog(year);
+            using var picker = new ReportYearDialog(year) { Font = Font };
             if (picker.ShowDialog(this) != DialogResult.OK) return;
             year = picker.SelectedYear;
         }
         var totals = Store.Report(year, annual ? null : _period?.Id);
         using var dialog = new ExpenseReportDialog(
-            annual ? $"Annual expense report - {year}" : $"Period expense report - {_period}", totals, annual);
+            annual ? $"Annual expense report - {year}" : $"Period expense report - {_period}", totals, annual) { Font = Font };
         dialog.ShowDialog(this);
     }
 
@@ -372,7 +381,7 @@ public partial class MainForm : Form, IServiceProvider
 
     private void ShowOptions()
     {
-        using var dialog = new OptionsDialog(_preferences);
+        using var dialog = new OptionsDialog(_preferences) { Font = Font };
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
         string originalFolder = Path.GetDirectoryName(Store.DatabasePath)!;
         Store.Relocate(dialog.Draft.DatabaseFolder);
