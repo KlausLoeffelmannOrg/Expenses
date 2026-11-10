@@ -86,6 +86,19 @@ $env:EXPENSES_FOUNDRY_LIVE = "1"
 dotnet test src\Expenses\Expenses.Tests --filter "Category=FoundryLive"
 ```
 
+### Standalone demo
+
+```powershell
+dotnet run --project src\Expenses\Foundry.Local.Demo
+```
+
+Open Model management to inspect the installed runtime, available hardware
+variants and model purposes, then download/load the model you want. The Images
+tab previews PNG/JPEG files and demonstrates descriptions and typed receipt OCR.
+The Translation tab exposes both language directions, alternatives/examples for
+words, idiom explanations, and ordinary text translation. Cancel buttons cancel
+pending operations without unloading the shared model.
+
 Settings default to `%LOCALAPPDATA%\Expenses`, with the SQLite database and
 managed receipts in `Data`. Tools > Options can relocate storage and configure
 an additional backup folder. Keep the active database on a local disk; use

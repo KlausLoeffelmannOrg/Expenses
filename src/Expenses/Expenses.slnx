@@ -4,4 +4,5 @@
   <Project Path="Expenses.Tests/Expenses.Tests.csproj" />
   <Project Path="Foundry.Local/Foundry.Local.csproj" />
   <Project Path="Foundry.Local.WinForms/Foundry.Local.WinForms.csproj" />
+  <Project Path="Foundry.Local.Demo/Foundry.Local.Demo.csproj" />
 </Solution>

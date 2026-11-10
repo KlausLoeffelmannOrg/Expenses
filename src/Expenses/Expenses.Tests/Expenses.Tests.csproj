@@ -15,5 +15,6 @@
     </PackageReference>
     <ProjectReference Include="..\Expenses.App\Expenses.App.csproj" />
     <ProjectReference Include="..\Foundry.Local.WinForms\Foundry.Local.WinForms.csproj" />
+    <ProjectReference Include="..\Foundry.Local.Demo\Foundry.Local.Demo.csproj" />
   </ItemGroup>
 </Project>
